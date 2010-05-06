@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import oauth
+import sys
 import urlparse
 import cgi
 import httplib
 import string
 import urllib
 import re
+
+sys.path.append('third_party')
+
+import oauth
 
 try:
   import simplejson
