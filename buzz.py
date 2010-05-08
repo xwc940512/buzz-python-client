@@ -20,6 +20,8 @@ import string
 import urllib
 import re
 
+import logging
+
 sys.path.append('third_party')
 
 import oauth
@@ -31,19 +33,19 @@ except (ImportError):
   from django.utils import simplejson
 
 API_PREFIX = "https://www.googleapis.com/buzz/v1"
-READONLY_ACTIVITIES_SCOPE = \
-  'tag:google.com,2010:auth/buzz/activities#readonly&secure'
-READWRITE_ACTIVITIES_SCOPE = 'tag:google.com,2010:auth/buzz/activities#secure'
-READONLY_PEOPLE_SCOPE = 'tag:google.com,2010:auth/buzz/people#readonly&secure'
-READWRITE_PEOPLE_SCOPE = 'tag:google.com,2010:auth/buzz/people#secure'
-FULL_ACCESS_SCOPE = 'tag:google.com,2010:auth/buzz#secure'
+READONLY_SCOPE = 'https://www.googleapis.com/auth/buzz.readonly'
+FULL_ACCESS_SCOPE = 'https://www.googleapis.com/auth/buzz'
 
 OAUTH_REQUEST_TOKEN_URI = \
   'https://www.google.com/accounts/OAuthGetRequestToken'
 OAUTH_ACCESS_TOKEN_URI = \
   'https://www.google.com/accounts/OAuthGetAccessToken'
 OAUTH_AUTHORIZATION_URI = \
-  'https://www.google.com/accounts/OAuthAuthorizeToken'
+  'https://sandbox.google.com/buzz/api/auth/OAuthAuthorizeToken'
+# OAUTH_AUTHORIZATION_URI = \
+#   'https://www.google.com/buzz/api/auth/OAuthAuthorizeToken'
+# OAUTH_AUTHORIZATION_URI = \
+#   'https://www.google.com/accounts/OAuthAuthorizeToken'
 
 class RetrieveError(Exception):
   """
@@ -86,12 +88,13 @@ class JSONParseError(Exception):
 
 def prune_json(json):
   # Follow Postel's law
-  if json.get('data'):
-    json = json['data']
-  if json.get('resource'):
-    json = json['resource']
-  if json.get('item'):
-    json = json['item']
+  if isinstance(json, dict):
+    if json.get('data'):
+      json = json['data']
+    if json.get('items'):
+      json = json['items']
+  else:
+    raise TypeError('Expected dict: \'%s\'' % str(json))
   return json
 
 class Client:
@@ -116,8 +119,8 @@ class Client:
       self._http_connection = httplib.HTTPSConnection('www.googleapis.com')
     if self._http_connection.host != 'www.googleapis.com':
       raise ValueError("HTTPS Connection must be for 'www.googleapis.com'.")
-    if self._http_connection.port != 443:
-      raise ValueError("HTTPS Connection must be for port 443.")    
+    # if self._http_connection.port != 443:
+    #   raise ValueError("HTTPS Connection must be for port 443.")    
     return self._http_connection
 
   @property
@@ -209,7 +212,16 @@ class Client:
     return self.oauth_request_token
 
   def build_oauth_authorization_url(self, token=None):
-    return OAUTH_AUTHORIZATION_URI + "?oauth_token=" + token.key
+    if not token:
+      token = self.oauth_request_token
+    if not self.oauth_consumer:
+      raise ValueError("Client is missing consumer.")      
+    auth_uri = OAUTH_AUTHORIZATION_URI + \
+      "?oauth_token=" + token.key + \
+      "&domain=" + self.oauth_consumer.key
+    for scope in self.oauth_scopes:
+      auth_uri += "&scope=" + scope
+    return auth_uri
 
   def fetch_oauth_access_token(self, verifier=None, token=None):
     """Obtains an OAuth access token from Google's Accounts API."""
@@ -347,9 +359,12 @@ class Client:
           uri=api_endpoint,
           message=json['error']['message']
         )
-      # Follow Postel's law
       json = prune_json(json)
-      return [Post(self, json_data) for json_data in json]
+      if isinstance(json, list):
+        return [Post(self, json_data) for json_data in json]
+      else:
+        # The entire key is omitted when there are no results
+        return []
     except KeyError, e:
       raise JSONParseError(
         uri=api_endpoint,
@@ -389,7 +404,7 @@ class Client:
   # 
   def posts(self, type_id='@self', user_id='@me'):
     api_endpoint = API_PREFIX + "/activities/" + user_id + "/" + type_id
-    api_endpoint += "?alt=json"
+    api_endpoint += "?alt=json&prettyprint=true"
     response = self.fetch_api_response('GET', api_endpoint)
     json = simplejson.load(response)
     if json.get('error'):
@@ -398,9 +413,13 @@ class Client:
         message=json['error']['message']
       )
     try:
+      logging.info(json)
       json = prune_json(json)
-      # TODO: Change these when we update JSON templates
-      return [Post(self, json_data) for json_data in json]
+      if isinstance(json, list):
+        return [Post(self, json_data) for json_data in json]
+      else:
+        # The entire key is omitted when there are no results
+        return []
     except KeyError, e:
       raise JSONParseError(
         uri=api_endpoint,
@@ -439,19 +458,28 @@ class Post:
     try:
       json = prune_json(json)
       self._id = json['id']
-      if isinstance(json['content'], dict):
+      if isinstance(json.get('content'), dict):
         self._content = json['content']['value']
-      else:
+      elif json.get('content'):
         self._content = json['content']
+      elif json.get('object') and json['object'].get('content'):
+        self._content = json['object']['content']
       if isinstance(json['title'], dict):
         self._title = json['title']['value']
       else:
         self._title = json['title']
-      if isinstance(json['verb'], list):
+      if isinstance(json.get('verb'), list):
         self._verb = json['verb'][0]
-      else:
+      elif json.get('verb'):
         self._verb = json['verb']
-      self._author = Person(self.client, json['author'])
+      elif isinstance(json.get('type'), list):
+        self._verb = json['type'][0]
+      elif json.get('type'):
+        self._verb = json['type']
+      if json.get('author'):
+        self._actor = Person(self.client, json['author'])
+      elif json.get('actor'):
+        self._actor = Person(self.client, json['actor'])
     except KeyError, e:
       raise JSONParseError(
         dictionary=json,
@@ -515,22 +543,4 @@ class Person:
 
   @property
   def posts(self):
-    api_endpoint = API_PREFIX + "/activities/" + self._id + "/@self"
-    api_endpoint += "?alt=json"
-    response = self.client.fetch_api_response('GET', api_endpoint)
-    json = simplejson.load(response)
-    try:
-      if json.get('error'):
-        raise RetrieveError(
-          uri=api_endpoint,
-          message=json['error']['message']
-        )
-      json = prune_json(json)
-      # TODO: Change these when we update JSON templates
-      return [Post(self.client, json_data) for json_data in json]
-    except KeyError, e:
-      raise JSONParseError(
-        uri=api_endpoint,
-        dictionary=json,
-        exception=e
-      )
+    return self.client.posts(user_id=self._id)
