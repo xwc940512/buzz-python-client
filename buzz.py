@@ -27,10 +27,10 @@ sys.path.append('third_party')
 import oauth
 
 try:
-  import simplejson
-except (ImportError):
   # This is where simplejson lives on App Engine
   from django.utils import simplejson
+except (ImportError):
+  import simplejson
 
 API_PREFIX = "https://www.googleapis.com/buzz/v1"
 READONLY_SCOPE = 'https://www.googleapis.com/auth/buzz.readonly'
@@ -89,6 +89,8 @@ class JSONParseError(Exception):
 def prune_json(json):
   # Follow Postel's law
   if isinstance(json, dict):
+    if json.get('entry'):
+      json = json['entry']
     if json.get('data'):
       json = json['data']
     if json.get('items'):
@@ -640,6 +642,8 @@ class Comment:
   def __init__(self, json, client=None):
     self.client = client
     self.json = json
+    self._post = None
+    self._post_id = None
     # Follow Postel's law
     try:
       json = prune_json(json)
@@ -654,6 +658,8 @@ class Comment:
         self.actor = Person(json['author'], client=self.client)
       elif json.get('actor'):
         self.actor = Person(json['actor'], client=self.client)
+      if json.get('links') and json['links'].get('inReplyTo'):
+        self._post_id = json['links']['inReplyTo'][0]['ref']
       # TODO: handle timestamps
     except KeyError, e:
       raise JSONParseError(
@@ -665,8 +671,10 @@ class Comment:
     return "<Comment[%s]>" % self.id
   
   def post(self):
-    # TODO
-    return None
+    if not self._post:
+      # TODO: implement this
+      print self._post_id
+    return self._post
 
 class Person:
   def __init__(self, json, client=None):
