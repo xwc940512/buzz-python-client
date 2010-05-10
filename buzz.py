@@ -1,11 +1,11 @@
 # Copyright 2010 Google Inc.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -103,13 +103,13 @@ class Client:
 
     # OAuth state
     self.oauth_scopes = []
-    self.oauth_consumer_key = None
-    self.oauth_consumer_secret = None
     self._oauth_http_connection = None
-    self._oauth_consumer = None
+    self.oauth_consumer = None
     self.oauth_request_token = None
     self.oauth_access_token = None
     self._oauth_token_authorized = False
+    self._oauth_signature_method_hmac_sha1 = \
+      oauth.OAuthSignatureMethod_HMAC_SHA1()
 
   @property
   def http_connection(self):
@@ -120,24 +120,17 @@ class Client:
     if self._http_connection.host != 'www.googleapis.com':
       raise ValueError("HTTPS Connection must be for 'www.googleapis.com'.")
     # if self._http_connection.port != 443:
-    #   raise ValueError("HTTPS Connection must be for port 443.")    
+    #   raise ValueError("HTTPS Connection must be for port 443.")
     return self._http_connection
 
-  @property
-  def oauth_consumer(self):
-    if not self._oauth_consumer:
-      self._oauth_signature_method_hmac_sha1 = \
-        oauth.OAuthSignatureMethod_HMAC_SHA1()
-      if self.oauth_consumer_key and self.oauth_consumer_secret:
-        self._oauth_consumer = oauth.OAuthConsumer(
-          self.oauth_consumer_key,
-          self.oauth_consumer_secret
-        )
-      else:
-        raise ValueError(
-          "Both oauth_consumer_key and oauth_consumer_secret must be set."
-        )
-    return self._oauth_consumer
+  def build_oauth_consumer(self, key, secret):
+    self.oauth_consumer = oauth.OAuthConsumer(key, secret)
+
+  def build_oauth_request_token(self, key, secret):
+    self.oauth_request_token = oauth.OAuthToken(key, secret)
+
+  def build_oauth_access_token(self, key, secret):
+    self.oauth_access_token = oauth.OAuthToken(key, secret)
 
   @property
   def oauth_http_connection(self):
@@ -146,9 +139,9 @@ class Client:
     if self._oauth_http_connection.host != 'www.google.com':
       raise ValueError("OAuth HTTPS Connection must be for 'www.google.com'.")
     # if self._oauth_http_connection.port != 443:
-    #   raise ValueError("OAuth HTTPS Connection must be for port 443.")    
+    #   raise ValueError("OAuth HTTPS Connection must be for port 443.")
     return self._oauth_http_connection
-  
+
   def fetch_oauth_response(self, oauth_request):
     """Sends a signed request to Google's Accounts API."""
     # Transmit the OAuth request to Google
@@ -215,7 +208,7 @@ class Client:
     if not token:
       token = self.oauth_request_token
     if not self.oauth_consumer:
-      raise ValueError("Client is missing consumer.")      
+      raise ValueError("Client is missing consumer.")
     auth_uri = OAUTH_AUTHORIZATION_URI + \
       "?oauth_token=" + token.key + \
       "&domain=" + self.oauth_consumer.key
@@ -269,7 +262,7 @@ class Client:
         # Deprecated in 2.6
         qs_parser = cgi.parse_qs
       parameters = qs_parser(
-        query, 
+        query,
         keep_blank_values=True,
         strict_parsing=True
       )
@@ -292,18 +285,21 @@ class Client:
     )
     return oauth_request
 
-  def fetch_api_response(self, http_method, http_url, headers={}, \
-                               http_connection=None):
+  def fetch_api_response(self, http_method, http_url, http_headers={}, \
+                               http_connection=None, http_body=''):
     if not http_connection:
       http_connection = self.http_connection
     if not self.oauth_consumer:
-      raise ValueError("Client is missing consumer.")      
+      raise ValueError("Client is missing consumer.")
+    http_headers.update({
+      'Content-Length': len(http_body)
+    })
     if self.oauth_access_token:
       # Build OAuth request and add OAuth header if we've got an access token
       oauth_request = self.build_oauth_request(http_method, http_url)
-      headers.update(oauth_request.to_header())
+      http_headers.update(oauth_request.to_header())
     try:
-      http_connection.request(http_method, http_url, headers=headers)
+      http_connection.request(http_method, http_url, headers=http_headers)
       response = http_connection.getresponse()
     except (httplib.BadStatusLine, httplib.CannotSendRequest):
       if http_connection and http_connection == self.http_connection:
@@ -313,38 +309,102 @@ class Client:
         self._http_connection = None
         http_connection = self.http_connection
         # Retry once
-        http_connection.request(http_method, http_url, headers=headers)
+        http_connection.request(http_method, http_url, headers=http_headers)
         response = http_connection.getresponse()
     return response
-  
-  # API access methods
-  
+
+  def parse_person(self, json, api_endpoint=None):
+    """Helper method for converting a person JSON structure."""
+    try:
+      if json.get('error'):
+        self.parse_error(json, api_endpoint)
+      return Person(json, client=self)
+    except KeyError, e:
+      raise JSONParseError(
+        uri=api_endpoint,
+        dictionary=json,
+        exception=e
+      )
+
+  def parse_people(self, json, api_endpoint=None):
+    """Helper method for converting a set of person JSON structures."""
+    try:
+      if json.get('error'):
+        self.parse_error(json, api_endpoint)
+      if isinstance(json, list):
+        return [Person(post_json, client=self) for person_json in json]
+      else:
+        # The entire key is omitted when there are no results
+        return []
+    except KeyError, e:
+      raise JSONParseError(
+        uri=api_endpoint,
+        dictionary=json,
+        exception=e
+      )
+
+  def parse_posts(self, json, api_endpoint=None):
+    """Helper method for converting a set of post JSON structures."""
+    try:
+      if json.get('error'):
+        self.parse_error(json, api_endpoint)
+      json = prune_json(json)
+      if isinstance(json, list):
+        return [Post(post_json, client=self) for post_json in json]
+      else:
+        # The entire key is omitted when there are no results
+        return []
+    except KeyError, e:
+      raise JSONParseError(
+        uri=api_endpoint,
+        dictionary=json,
+        exception=e
+      )
+
+  def parse_comments(self, json, api_endpoint=None):
+    """Helper method for converting a set of comment JSON structures."""
+    try:
+      if json.get('error'):
+        self.parse_error(json, api_endpoint)
+      json = prune_json(json)
+      if isinstance(json, list):
+        return [Comment(comment_json, client=self) for comment_json in json]
+      else:
+        # The entire key is omitted when there are no results
+        return []
+    except KeyError, e:
+      raise JSONParseError(
+        uri=api_endpoint,
+        dictionary=json,
+        exception=e
+      )
+
+  def parse_error(self, json, api_endpoint=None):
+    """Helper method for converting an error response to an exception."""
+    raise RetrieveError(
+      uri=api_endpoint,
+      message=json['error'].get('message')
+    )
+
   # People APIs
-  
+
   def user(self, user_id='@me'):
+    if isinstance(user_id, Person):
+      # You'd think we could just return directly here, but sometimes a
+      # Person object is incomplete, in which case this operation would
+      # 'upgrade' to the full Person object.
+      user_id = user_id.id
     if self.oauth_access_token:
       api_endpoint = API_PREFIX + ("/people/%s/@self" % user_id)
       api_endpoint += "?alt=json"
       response = self.fetch_api_response('GET', api_endpoint)
       json = simplejson.load(response)
-      try:
-        if json.get('error'):
-          raise RetrieveError(
-            uri=api_endpoint,
-            message=json['error']['message']
-          )
-        return Person(self, json)
-      except KeyError, e:
-        raise JSONParseError(
-          uri=api_endpoint,
-          dictionary=json,
-          exception=e
-        )
+      return self.parse_person(json, api_endpoint)
     else:
       raise ValueError("This client doesn't have an authenticated user.")
-  
+
   # Post APIs
-  
+
   def search(self, query=None, geocode=None):
     api_endpoint = API_PREFIX + "/activities/search?alt=json"
     if query:
@@ -353,84 +413,132 @@ class Client:
       api_endpoint += "&geocode=" + urllib.quote(",".join(geocode))
     response = self.fetch_api_response('GET', api_endpoint)
     json = simplejson.load(response)
-    try:      
-      if json.get('error'):
-        raise RetrieveError(
-          uri=api_endpoint,
-          message=json['error']['message']
-        )
-      json = prune_json(json)
-      if isinstance(json, list):
-        return [Post(self, json_data) for json_data in json]
-      else:
-        # The entire key is omitted when there are no results
-        return []
-    except KeyError, e:
-      raise JSONParseError(
-        uri=api_endpoint,
-        dictionary=json,
-        exception=e
-      )
+    return self.parse_posts(json, api_endpoint)
 
-  # 
-  # # Likes
-  # 
-  # def liked_posts(self, user_id=None):
-  # 
-  # def like_post(self, post_id):
-  #   
-  # def unlike_post(self, post_id):
-  #   
-  # 
-  # # Mutes
-  # 
-  # def muted_posts(self):
-  # 
-  # def mute_post(self, post_id):
-  #   
-  # def unmute_post(self, post_id):
-  # 
-  # # People
-  # 
-  # def followers(self, user_id):
-  # 
-  # def following(self, user_id):
-  # 
-  # def follow(self, user_id):
-  # 
-  # def unfollow(self, user_id):
-  # 
-  # # Posts
-  # 
   def posts(self, type_id='@self', user_id='@me'):
+    if isinstance(user_id, Person):
+      user_id = user_id.id
     api_endpoint = API_PREFIX + "/activities/" + user_id + "/" + type_id
-    api_endpoint += "?alt=json&prettyprint=true"
+    api_endpoint += "?alt=json"
     response = self.fetch_api_response('GET', api_endpoint)
     json = simplejson.load(response)
+    return self.parse_posts(json, api_endpoint)
+
+  def comments(self, actor_id, post_id):
+    if isinstance(actor_id, Person):
+      actor_id = actor_id.id
+    if isinstance(post_id, Post):
+      post_id = post_id.id
+    api_endpoint = API_PREFIX + "/activities/" + actor_id + \
+      "/@self/" + post_id + "/@comments"
+    api_endpoint += "?alt=json"
+    response = self.fetch_api_response('GET', api_endpoint)
+    json = simplejson.load(response)
+    return self.parse_comments(json, api_endpoint)
+
+  def likers(self, actor_id, post_id):
+    if isinstance(actor_id, Person):
+      actor_id = actor_id.id
+    if isinstance(post_id, Post):
+      post_id = post_id.id
+    api_endpoint = API_PREFIX + "/activities/" + actor_id + \
+      "/@self/" + post_id + "/@likers"
+    api_endpoint += "?alt=json"
+    response = self.fetch_api_response('GET', api_endpoint)
+    json = simplejson.load(response)
+    return self.parse_people(json, api_endpoint)
+
+  # Likes
+  def liked_posts(self, user_id=None):
+    """Returns a collection of posts that a user has liked."""
+    return None # self.posts(type_id='@liked', user_id)
+
+  def like_post(self, actor_id, post_id):
+    """
+    Likes a post.
+    """
+    if isinstance(actor_id, Person):
+      actor_id = actor_id.id
+    if isinstance(post_id, Post):
+      post_id = post_id.id
+    api_endpoint = API_PREFIX + "/activities/" + actor_id + \
+      "/@liked/" + post_id
+    api_endpoint += "?alt=json"
+    response = self.fetch_api_response('PUT', api_endpoint)
+    json = simplejson.load(response)
     if json.get('error'):
-      raise RetrieveError(
-        uri=api_endpoint,
-        message=json['error']['message']
-      )
-    try:
-      logging.info(json)
-      json = prune_json(json)
-      if isinstance(json, list):
-        return [Post(self, json_data) for json_data in json]
-      else:
-        # The entire key is omitted when there are no results
-        return []
-    except KeyError, e:
-      raise JSONParseError(
-        uri=api_endpoint,
-        dictionary=json,
-        exception=e
-      )
+      self.parse_error(self, json, api_endpoint)
+
+  def unlike_post(self, actor_id, post_id):
+    """
+    Unlikes a post.
+    """
+    if isinstance(actor_id, Person):
+      actor_id = actor_id.id
+    if isinstance(post_id, Post):
+      post_id = post_id.id
+    api_endpoint = API_PREFIX + "/activities/" + actor_id + \
+      "/@liked/" + post_id
+    api_endpoint += "?alt=json"
+    response = self.fetch_api_response('DELETE', api_endpoint)
+    json = simplejson.load(response)
+    if json.get('error'):
+      self.parse_error(json, api_endpoint)
+
+  # Mutes
+  
+  def muted_posts(self):
+    """Returns a collection of posts that the current user has muted."""
+    return self.posts(type_id='@muted', user_id='@me')
+
+  def mute_post(self, actor_id, post_id):
+    """
+    Mutes a post.
+    """
+    if isinstance(actor_id, Person):
+      actor_id = actor_id.id
+    if isinstance(post_id, Post):
+      post_id = post_id.id
+    api_endpoint = API_PREFIX + "/activities/" + actor_id + \
+      "/@muted/" + post_id
+    api_endpoint += "?alt=json"
+    response = self.fetch_api_response('PUT', api_endpoint)
+    json = simplejson.load(response)
+    if json.get('error'):
+      self.parse_error(self, json, api_endpoint)
+
+  def unmute_post(self, actor_id, post_id):
+    """
+    Unmutes a post.
+    """
+    if isinstance(actor_id, Person):
+      actor_id = actor_id.id
+    if isinstance(post_id, Post):
+      post_id = post_id.id
+    api_endpoint = API_PREFIX + "/activities/" + actor_id + \
+      "/@muted/" + post_id
+    api_endpoint += "?alt=json"
+    response = self.fetch_api_response('DELETE', api_endpoint)
+    json = simplejson.load(response)
+    if json.get('error'):
+      self.parse_error(json, api_endpoint)
+
+  # # People
+  #
+  # def followers(self, user_id):
+  #
+  # def following(self, user_id):
+  #
+  # def follow(self, user_id):
+  #
+  # def unfollow(self, user_id):
+
+  # OAuth debugging
 
   def oauth_token_info(self):
     """
     Returns information about the client's current access token.
-    
+
     Allows a developer to verify that their token is valid.
     """
     api_endpoint = "https://www.google.com/accounts/AuthSubTokenInfo"
@@ -443,95 +551,110 @@ class Client:
     )
     return response.read()
 
-    # def access_resource(self, oauth_request):
-    #   # via post body
-    #   # -> some protected resources
-    #   headers = {'Content-Type' :'application/x-www-form-urlencoded'}
-    #   self.connection.request('POST', RESOURCE_URL, body=oauth_request.to_postdata(), headers=headers)
-    #   response = self.connection.getresponse()
-    #   return response.read()
-
 class Post:
-  def __init__(self, client, json):
+  def __init__(self, json, client=None):
     self.client = client
+    self.json = json
+    self._likers = None
+    self._comments = None
+
     # Follow Postel's law
     try:
       json = prune_json(json)
-      self._id = json['id']
+      self.id = json['id']
       if isinstance(json.get('content'), dict):
-        self._content = json['content']['value']
+        self.content = json['content']['value']
       elif json.get('content'):
-        self._content = json['content']
+        self.content = json['content']
       elif json.get('object') and json['object'].get('content'):
-        self._content = json['object']['content']
+        self.content = json['object']['content']
       if isinstance(json['title'], dict):
-        self._title = json['title']['value']
+        self.title = json['title']['value']
       else:
-        self._title = json['title']
+        self.title = json['title']
       if isinstance(json.get('verb'), list):
-        self._verb = json['verb'][0]
+        self.verb = json['verb'][0]
       elif json.get('verb'):
-        self._verb = json['verb']
+        self.verb = json['verb']
       elif isinstance(json.get('type'), list):
-        self._verb = json['type'][0]
+        self.verb = json['type'][0]
       elif json.get('type'):
-        self._verb = json['type']
+        self.verb = json['type']
       if json.get('author'):
-        self._actor = Person(self.client, json['author'])
+        self.actor = Person(json['author'], client=self.client)
       elif json.get('actor'):
-        self._actor = Person(self.client, json['actor'])
+        self.actor = Person(json['actor'], client=self.client)
+      # TODO: handle timestamps
     except KeyError, e:
       raise JSONParseError(
         dictionary=json,
         exception=e
       )
-  
-  
+
   def __repr__(self):
-    return "<Post[%s]>" % self._id
-  
+    return "<Post[%s]>" % self.id
+
   @property
-  def author(self):
-    return self._author
-  
+  def comments(self):
+    if not self._comments:
+      if self.client:
+        self._comments = self.client.comments(self.actor.id, self.id)
+      else:
+        raise ValueError('Cannot get comments without a client reference.')
+    return self._comments
+
   @property
   def likers(self):
     if not self._likers:
-      api_endpoint = API_PREFIX + "/activities/" + self._author_id + \
-        "/@self/" + self._id + "/@likers"
-      api_endpoint += "?alt=json"
-      response = self.client.fetch_api_response('GET', api_endpoint)
-      # TODO: Wrap this in a person construct
-      json = simplejson.load(response)
-      if json.get('error'):
-        raise RetrieveError(
-          uri=api_endpoint,
-          message=json['error']['message']
-        )
-      # TODO: Change this when we update PoCo templates
-      return [Person(json_data) for json_data in json]
+      if self.client:
+        self._likers = self.client.likers(self.actor.id, self.id)
+      else:
+        raise ValueError('Cannot get likers without a client reference.')
     return self._likers
 
-class Person:
-  def __init__(self, client, json):
+  def like(self, client=None):
+    """Syntactic sugar for `client.like_post(post)`."""
+    if not client:
+      client = self.client
+    return client.like_post(self.actor.id, self.id)
+
+  def unlike(self, client=None):
+    """Syntactic sugar for `client.unlike_post(post)`."""
+    if not client:
+      client = self.client
+    return client.unlike_post(self.actor.id, self.id)
+
+  def mute(self, client=None):
+    """Syntactic sugar for `client.mute_post(post)`."""
+    if not client:
+      client = self.client
+    return client.mute_post(self.actor.id, self.id)
+
+  def unmute(self, client=None):
+    """Syntactic sugar for `client.unmute_post(post)`."""
+    if not client:
+      client = self.client
+    return client.unmute_post(self.actor.id, self.id)
+
+class Comment:
+  def __init__(self, json, client=None):
     self.client = client
+    self.json = json
     # Follow Postel's law
     try:
       json = prune_json(json)
-      self._name = \
-        json.get('name') or json.get('displayName')
-      self._uri = \
-        json.get('uri') or json.get('profileUrl')
-      self._photo = \
-        json.get('photoUrl') or json.get('thumbnailUrl')
-      if json.get('id'):
-        self._id = json.get('id')
-      else:
-        self._id = re.search('/([^/]*?)$', self._uri).group(1)
-      if json.get('urls'):
-        self._uris = json.get('urls')
-      if json.get('photos'):
-        self._photos = json.get('photos')
+      self.id = json['id']
+      if isinstance(json.get('content'), dict):
+        self.content = json['content']['value']
+      elif json.get('content'):
+        self.content = json['content']
+      elif json.get('object') and json['object'].get('content'):
+        self.content = json['object']['content']
+      if json.get('author'):
+        self.actor = Person(json['author'], client=self.client)
+      elif json.get('actor'):
+        self.actor = Person(json['actor'], client=self.client)
+      # TODO: handle timestamps
     except KeyError, e:
       raise JSONParseError(
         dictionary=json,
@@ -539,8 +662,42 @@ class Person:
       )
 
   def __repr__(self):
-    return "<Person[%s]>" % self._id
+    return "<Comment[%s]>" % self.id
+  
+  def post(self):
+    # TODO
+    return None
+
+class Person:
+  def __init__(self, json, client=None):
+    self.client = client
+    self.json = json
+    # Follow Postel's law
+    try:
+      json = prune_json(json)
+      self.uri = \
+        json.get('uri') or json.get('profileUrl')
+      if json.get('id'):
+        self.id = json.get('id')
+      else:
+        self.id = re.search('/([^/]*?)$', self.uri).group(1)
+      self.name = \
+        json.get('name') or json.get('displayName')
+      self.photo = \
+        json.get('photoUrl') or json.get('thumbnailUrl')
+      if json.get('urls'):
+        self.uris = json.get('urls')
+      if json.get('photos'):
+        self.photos = json.get('photos')
+    except KeyError, e:
+      raise JSONParseError(
+        dictionary=json,
+        exception=e
+      )
+
+  def __repr__(self):
+    return "<Person[%s]>" % self.id
 
   @property
   def posts(self):
-    return self.client.posts(user_id=self._id)
+    return self.client.posts(user_id=self.id)
