@@ -86,13 +86,15 @@ class JSONParseError(Exception):
       else:
         return 'Parse failed: %s' % (self._dictionary)
 
-def prune_json(json):
+def _prune_json(json):
   # Follow Postel's law
   if isinstance(json, dict):
     if json.get('entry'):
       json = json['entry']
     if json.get('data'):
       json = json['data']
+    if json.get('results'):
+      json = json['results']
     if json.get('items'):
       json = json['items']
   else:
@@ -252,10 +254,10 @@ class Client:
         raise Exception('Failed to obtain access token:\n' + response.read())
     return self.oauth_access_token
 
-  def build_oauth_request(self, http_method, http_url):
+  def build_oauth_request(self, http_method, http_uri):
     # Query parameters have to be signed, and the OAuth library isn't smart
     # enough to do this automatically
-    query = urlparse.urlparse(http_url)[4] # Query is 4th element of the tuple
+    query = urlparse.urlparse(http_uri)[4] # Query is 4th element of the tuple
     if query:
       qs_parser = None
       if hasattr(urlparse, 'parse_qs'):
@@ -277,7 +279,7 @@ class Client:
       self.oauth_consumer,
       token=self.oauth_access_token,
       http_method=http_method,
-      http_url=http_url,
+      http_url=http_uri,
       parameters=parameters
     )
     oauth_request.sign_request(
@@ -287,7 +289,7 @@ class Client:
     )
     return oauth_request
 
-  def fetch_api_response(self, http_method, http_url, http_headers={}, \
+  def fetch_api_response(self, http_method, http_uri, http_headers={}, \
                                http_connection=None, http_body=''):
     if not http_connection:
       http_connection = self.http_connection
@@ -298,10 +300,10 @@ class Client:
     })
     if self.oauth_access_token:
       # Build OAuth request and add OAuth header if we've got an access token
-      oauth_request = self.build_oauth_request(http_method, http_url)
+      oauth_request = self.build_oauth_request(http_method, http_uri)
       http_headers.update(oauth_request.to_header())
     try:
-      http_connection.request(http_method, http_url, headers=http_headers)
+      http_connection.request(http_method, http_uri, headers=http_headers)
       response = http_connection.getresponse()
     except (httplib.BadStatusLine, httplib.CannotSendRequest):
       if http_connection and http_connection == self.http_connection:
@@ -311,86 +313,13 @@ class Client:
         self._http_connection = None
         http_connection = self.http_connection
         # Retry once
-        http_connection.request(http_method, http_url, headers=http_headers)
+        http_connection.request(http_method, http_uri, headers=http_headers)
         response = http_connection.getresponse()
     return response
 
-  def parse_person(self, json, api_endpoint=None):
-    """Helper method for converting a person JSON structure."""
-    try:
-      if json.get('error'):
-        self.parse_error(json, api_endpoint)
-      return Person(json, client=self)
-    except KeyError, e:
-      raise JSONParseError(
-        uri=api_endpoint,
-        dictionary=json,
-        exception=e
-      )
-
-  def parse_people(self, json, api_endpoint=None):
-    """Helper method for converting a set of person JSON structures."""
-    try:
-      if json.get('error'):
-        self.parse_error(json, api_endpoint)
-      if isinstance(json, list):
-        return [Person(post_json, client=self) for person_json in json]
-      else:
-        # The entire key is omitted when there are no results
-        return []
-    except KeyError, e:
-      raise JSONParseError(
-        uri=api_endpoint,
-        dictionary=json,
-        exception=e
-      )
-
-  def parse_posts(self, json, api_endpoint=None):
-    """Helper method for converting a set of post JSON structures."""
-    try:
-      if json.get('error'):
-        self.parse_error(json, api_endpoint)
-      json = prune_json(json)
-      if isinstance(json, list):
-        return [Post(post_json, client=self) for post_json in json]
-      else:
-        # The entire key is omitted when there are no results
-        return []
-    except KeyError, e:
-      raise JSONParseError(
-        uri=api_endpoint,
-        dictionary=json,
-        exception=e
-      )
-
-  def parse_comments(self, json, api_endpoint=None):
-    """Helper method for converting a set of comment JSON structures."""
-    try:
-      if json.get('error'):
-        self.parse_error(json, api_endpoint)
-      json = prune_json(json)
-      if isinstance(json, list):
-        return [Comment(comment_json, client=self) for comment_json in json]
-      else:
-        # The entire key is omitted when there are no results
-        return []
-    except KeyError, e:
-      raise JSONParseError(
-        uri=api_endpoint,
-        dictionary=json,
-        exception=e
-      )
-
-  def parse_error(self, json, api_endpoint=None):
-    """Helper method for converting an error response to an exception."""
-    raise RetrieveError(
-      uri=api_endpoint,
-      message=json['error'].get('message')
-    )
-
   # People APIs
 
-  def user(self, user_id='@me'):
+  def person(self, user_id='@me'):
     if isinstance(user_id, Person):
       # You'd think we could just return directly here, but sometimes a
       # Person object is incomplete, in which case this operation would
@@ -399,9 +328,7 @@ class Client:
     if self.oauth_access_token:
       api_endpoint = API_PREFIX + ("/people/%s/@self" % user_id)
       api_endpoint += "?alt=json"
-      response = self.fetch_api_response('GET', api_endpoint)
-      json = simplejson.load(response)
-      return self.parse_person(json, api_endpoint)
+      return Result(self, 'GET', api_endpoint, result_type=Person, singular=True)
     else:
       raise ValueError("This client doesn't have an authenticated user.")
 
@@ -413,18 +340,14 @@ class Client:
       api_endpoint += "&q=" + urllib.quote_plus(query)
     if geocode:
       api_endpoint += "&geocode=" + urllib.quote(",".join(geocode))
-    response = self.fetch_api_response('GET', api_endpoint)
-    json = simplejson.load(response)
-    return self.parse_posts(json, api_endpoint)
+    return Result(self, 'GET', api_endpoint, result_type=Post)
 
   def posts(self, type_id='@self', user_id='@me'):
     if isinstance(user_id, Person):
       user_id = user_id.id
     api_endpoint = API_PREFIX + "/activities/" + user_id + "/" + type_id
     api_endpoint += "?alt=json"
-    response = self.fetch_api_response('GET', api_endpoint)
-    json = simplejson.load(response)
-    return self.parse_posts(json, api_endpoint)
+    return Result(self, 'GET', api_endpoint, result_type=Post)
 
   def comments(self, actor_id, post_id):
     if isinstance(actor_id, Person):
@@ -434,9 +357,7 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@self/" + post_id + "/@comments"
     api_endpoint += "?alt=json"
-    response = self.fetch_api_response('GET', api_endpoint)
-    json = simplejson.load(response)
-    return self.parse_comments(json, api_endpoint)
+    return Result(self, 'GET', api_endpoint, result_type=Comment)
 
   def likers(self, actor_id, post_id):
     if isinstance(actor_id, Person):
@@ -446,14 +367,12 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@self/" + post_id + "/@likers"
     api_endpoint += "?alt=json"
-    response = self.fetch_api_response('GET', api_endpoint)
-    json = simplejson.load(response)
-    return self.parse_people(json, api_endpoint)
+    return Result(self, 'GET', api_endpoint, result_type=Person)
 
   # Likes
   def liked_posts(self, user_id=None):
     """Returns a collection of posts that a user has liked."""
-    return None # self.posts(type_id='@liked', user_id)
+    return self.posts(type_id='@liked', user_id)
 
   def like_post(self, actor_id, post_id):
     """
@@ -466,10 +385,7 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@liked/" + post_id
     api_endpoint += "?alt=json"
-    response = self.fetch_api_response('PUT', api_endpoint)
-    json = simplejson.load(response)
-    if json.get('error'):
-      self.parse_error(self, json, api_endpoint)
+    return Result(self, 'PUT', api_endpoint, result_type=None, singular=True)
 
   def unlike_post(self, actor_id, post_id):
     """
@@ -482,13 +398,10 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@liked/" + post_id
     api_endpoint += "?alt=json"
-    response = self.fetch_api_response('DELETE', api_endpoint)
-    json = simplejson.load(response)
-    if json.get('error'):
-      self.parse_error(json, api_endpoint)
+    return Result(self, 'DELETE', api_endpoint, result_type=None, singular=True)
 
   # Mutes
-  
+
   def muted_posts(self):
     """Returns a collection of posts that the current user has muted."""
     return self.posts(type_id='@muted', user_id='@me')
@@ -504,10 +417,7 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@muted/" + post_id
     api_endpoint += "?alt=json"
-    response = self.fetch_api_response('PUT', api_endpoint)
-    json = simplejson.load(response)
-    if json.get('error'):
-      self.parse_error(self, json, api_endpoint)
+    return Result(self, 'PUT', api_endpoint, result_type=None, singular=True)
 
   def unmute_post(self, actor_id, post_id):
     """
@@ -520,10 +430,7 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@muted/" + post_id
     api_endpoint += "?alt=json"
-    response = self.fetch_api_response('DELETE', api_endpoint)
-    json = simplejson.load(response)
-    if json.get('error'):
-      self.parse_error(json, api_endpoint)
+    return Result(self, 'DELETE', api_endpoint, result_type=None, singular=True)
 
   # # People
   #
@@ -562,7 +469,7 @@ class Post:
 
     # Follow Postel's law
     try:
-      json = prune_json(json)
+      json = _prune_json(json)
       self.id = json['id']
       if isinstance(json.get('content'), dict):
         self.content = json['content']['value']
@@ -646,7 +553,7 @@ class Comment:
     self._post_id = None
     # Follow Postel's law
     try:
-      json = prune_json(json)
+      json = _prune_json(json)
       self.id = json['id']
       if isinstance(json.get('content'), dict):
         self.content = json['content']['value']
@@ -669,7 +576,7 @@ class Comment:
 
   def __repr__(self):
     return "<Comment[%s]>" % self.id
-  
+
   def post(self):
     if not self._post:
       # TODO: implement this
@@ -682,7 +589,7 @@ class Person:
     self.json = json
     # Follow Postel's law
     try:
-      json = prune_json(json)
+      json = _prune_json(json)
       self.uri = \
         json.get('uri') or json.get('profileUrl')
       if json.get('id'):
@@ -693,6 +600,8 @@ class Person:
         json.get('name') or json.get('displayName')
       self.photo = \
         json.get('photoUrl') or json.get('thumbnailUrl')
+      if self.photo and self.photo.startswith('/photos/public/'):
+        self.photo = 'http://www.google.com/s2' + self.photo
       if json.get('urls'):
         self.uris = json.get('urls')
       if json.get('photos'):
@@ -709,3 +618,196 @@ class Person:
   @property
   def posts(self):
     return self.client.posts(user_id=self.id)
+
+class Result:
+  def __init__(self, client, http_method, http_uri, http_headers={}, \
+      http_body='', result_type=Post, singular=False):
+    self.client = client
+    self.result_type = result_type
+    self.singular = singular
+
+    # The HTTP response for the current page
+    self._response = None
+    # The HTTP response body for the current page
+    self._body = None
+    # The raw JSON data for the current page
+    self._json = None
+    # The parsed data for the current page
+    self._data = None
+    # The URI of the next page of results
+    self._next_uri = None
+
+    self._http_method = http_method
+    self._http_uri = http_uri
+    self._http_headers = http_headers
+    self._http_body = http_body
+
+  def __iter__(self):
+    return ResultIterator(self)
+
+  @property
+  def data(self):
+    if not self._data:
+      if not self._response:
+        self.reload()
+      if self._response.status != 200:
+        print self._json
+        self._parse_error(self._json)
+      if self.result_type == Post and self.singular:
+        # TODO
+        self._data = self._parse_post(self._json)
+      elif self.result_type == Post and not self.singular:
+        self._data = self._parse_posts(self._json)
+      elif self.result_type == Comment and self.singular:
+        # TODO
+        self._data = self._parse_comment(self._json)
+      elif self.result_type == Comment and not self.singular:
+        self._data = self._parse_comments(self._json)
+      elif self.result_type == Person and self.singular:
+        self._data = self._parse_person(self._json)
+      elif self.result_type == Person and not self.singular:
+        self._data = self._parse_people(self._json)
+    return self._data
+
+  def reload(self):
+    self._data = None
+    self._response = self.client.fetch_api_response(
+      http_method=self._http_method,
+      http_uri=self._http_uri,
+      http_headers=self._http_headers,
+      http_body=self._http_body
+    )
+    self._body = self._response.read()
+    self._json = simplejson.loads(self._body)
+
+  def load_next(self):
+    if self.next_uri:
+      self._http_uri = self.next_uri
+      # Reset all of these
+      self._next_uri = None
+      self._response = None
+      self._body = None
+      self._json = None
+      self._data = None
+    else:
+      raise ValueError('Cannot load next page, next page not present.')
+
+  @property
+  def next_uri(self):
+    if not self._next_uri:
+      if self.singular:
+        return None
+      else:
+        if not self._json:
+          self.reload()
+        semi_pruned_json = self._json.get('data') or self._json
+        links = semi_pruned_json.get('links')
+        if not links:
+          return None
+        next_link = links.get('next')
+        if not next_link:
+          return None
+        self._next_uri = next_link[0].get('href')
+        if not self._next_uri:
+          return None
+    return self._next_uri
+
+  def _parse_posts(self, json):
+    """Helper method for converting a set of post JSON structures."""
+    try:
+      if json.get('error'):
+        self.parse_error(json)
+      json = _prune_json(json)
+      if isinstance(json, list):
+        return [Post(post_json, client=self.client) for post_json in json]
+      else:
+        # The entire key is omitted when there are no results
+        return []
+    except KeyError, e:
+      raise JSONParseError(
+        uri=self._http_uri,
+        dictionary=json,
+        exception=e
+      )
+
+  def _parse_comments(self, json):
+    """Helper method for converting a set of comment JSON structures."""
+    try:
+      if json.get('error'):
+        self.parse_error(json)
+      json = _prune_json(json)
+      if isinstance(json, list):
+        return [Comment(comment_json, client=self.client) for comment_json in json]
+      else:
+        # The entire key is omitted when there are no results
+        return []
+    except KeyError, e:
+      raise JSONParseError(
+        uri=self._http_uri,
+        dictionary=json,
+        exception=e
+      )
+
+  def _parse_person(self, json):
+    """Helper method for converting a person JSON structure."""
+    try:
+      if json.get('error'):
+        self.parse_error(json)
+      json = _prune_json(json)
+      return Person(json, client=self.client)
+    except KeyError, e:
+      raise JSONParseError(
+        uri=self._http_uri,
+        dictionary=json,
+        exception=e
+      )
+
+  def _parse_people(self, json):
+    """Helper method for converting a set of person JSON structures."""
+    try:
+      if json.get('error'):
+        self.parse_error(json)
+      json = _prune_json(json)
+      if isinstance(json, list):
+        return [Person(post_json, client=self.client) for person_json in json]
+      else:
+        # The entire key is omitted when there are no results
+        return []
+    except KeyError, e:
+      raise JSONParseError(
+        uri=self._http_uri,
+        dictionary=json,
+        exception=e
+      )
+
+  def _parse_error(self, json):
+    """Helper method for converting an error response to an exception."""
+    raise RetrieveError(
+      uri=self._http_uri,
+      message=json['error'].get('message')
+    )
+
+class ResultIterator:
+  def __init__(self, result):
+    self.result = result
+    self.cursor = 0
+    self.start_index = 0
+
+  def __iter__(self):
+    return self
+
+  @property
+  def local_index(self):
+    return self.cursor - self.start_index
+
+  def next(self):
+    if self.local_index >= len(self.result.data):
+      if self.result.next_uri:
+        self.start_index += len(self.result.data)
+        self.result.load_next()
+      else:
+        raise StopIteration('No more results.')
+    # The local_index is in range of the current page
+    value = self.result.data[self.local_index]
+    self.cursor += 1
+    return value
