@@ -87,16 +87,16 @@ class JSONParseError(Exception):
       else:
         return 'Parse failed: %s' % (self._json)
 
-def _prune_json(json):
+def _prune_json_envelope(json):
   # Follow Postel's law
   if isinstance(json, dict):
-    if json.get('entry'):
-      json = json['entry']
-    if json.get('data'):
+    if isinstance(json, dict) and json.get('data'):
       json = json['data']
-    if json.get('results'):
+    if isinstance(json, dict) and json.get('entry'):
+      json = json['entry']
+    if isinstance(json, dict) and json.get('results'):
       json = json['results']
-    if json.get('items'):
+    if isinstance(json, dict) and json.get('items'):
       json = json['items']
   else:
     raise TypeError('Expected dict: \'%s\'' % str(json))
@@ -222,7 +222,9 @@ class Client:
       response = self.fetch_oauth_response(oauth_request)
       if response.status == 200:
         # Create the token from the response
-        self.oauth_request_token = oauth.OAuthToken.from_string(response.read())
+        self.oauth_request_token = oauth.OAuthToken.from_string(
+          response.read()
+        )
       else:
         raise Exception('Failed to obtain request token:\n' + response.read())
     return self.oauth_request_token
@@ -268,7 +270,9 @@ class Client:
       response = self.fetch_oauth_response(oauth_request)
       if response.status == 200:
         # Create the token from the response
-        self.oauth_access_token = oauth.OAuthToken.from_string(response.read())
+        self.oauth_access_token = oauth.OAuthToken.from_string(
+          response.read()
+        )
       else:
         raise Exception('Failed to obtain access token:\n' + response.read())
     return self.oauth_access_token
@@ -361,7 +365,35 @@ class Client:
     if self.oauth_access_token:
       api_endpoint = API_PREFIX + ("/people/%s/@self" % user_id)
       api_endpoint += "?alt=json"
-      return Result(self, 'GET', api_endpoint, result_type=Person, singular=True)
+      return Result(
+        self, 'GET', api_endpoint, result_type=Person, singular=True
+      )
+    else:
+      raise ValueError("This client doesn't have an authenticated user.")
+
+  def followers(self, user_id='@me'):
+    if isinstance(user_id, Person):
+      # You'd think we could just return directly here, but sometimes a
+      # Person object is incomplete, in which case this operation would
+      # 'upgrade' to the full Person object.
+      user_id = user_id.id
+    if self.oauth_access_token:
+      api_endpoint = API_PREFIX + ("/people/%s/@groups/@followers" % user_id)
+      api_endpoint += "?alt=json"
+      return Result(self, 'GET', api_endpoint, result_type=Person)
+    else:
+      raise ValueError("This client doesn't have an authenticated user.")
+
+  def following(self, user_id='@me'):
+    if isinstance(user_id, Person):
+      # You'd think we could just return directly here, but sometimes a
+      # Person object is incomplete, in which case this operation would
+      # 'upgrade' to the full Person object.
+      user_id = user_id.id
+    if self.oauth_access_token:
+      api_endpoint = API_PREFIX + ("/people/%s/@groups/@following" % user_id)
+      api_endpoint += "?alt=json"
+      return Result(self, 'GET', api_endpoint, result_type=Person)
     else:
       raise ValueError("This client doesn't have an authenticated user.")
 
@@ -428,7 +460,9 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@liked/" + post_id
     api_endpoint += "?alt=json"
-    return Result(self, 'PUT', api_endpoint, result_type=None, singular=True)
+    return Result(
+      self, 'PUT', api_endpoint, result_type=None, singular=True
+    )
 
   def unlike_post(self, post_id, actor_id='0'):
     """
@@ -441,7 +475,9 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@liked/" + post_id
     api_endpoint += "?alt=json"
-    return Result(self, 'DELETE', api_endpoint, result_type=None, singular=True)
+    return Result(
+      self, 'DELETE', api_endpoint, result_type=None, singular=True
+    )
 
   # Mutes
 
@@ -460,7 +496,9 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@muted/" + post_id
     api_endpoint += "?alt=json"
-    return Result(self, 'PUT', api_endpoint, result_type=None, singular=True)
+    return Result(
+      self, 'PUT', api_endpoint, result_type=None, singular=True
+    )
 
   def unmute_post(self, post_id, actor_id='0'):
     """
@@ -473,7 +511,9 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@muted/" + post_id
     api_endpoint += "?alt=json"
-    return Result(self, 'DELETE', api_endpoint, result_type=None, singular=True)
+    return Result(
+      self, 'DELETE', api_endpoint, result_type=None, singular=True
+    )
 
   # # People
   #
@@ -512,7 +552,7 @@ class Post:
 
     # Follow Postel's law
     try:
-      json = _prune_json(json)
+      json = _prune_json_envelope(json)
       self.id = json['id']
       if isinstance(json.get('content'), dict):
         self.content = json['content']['value']
@@ -592,7 +632,7 @@ class Comment:
     self._post_id = None
     # Follow Postel's law
     try:
-      json = _prune_json(json)
+      json = _prune_json_envelope(json)
       self.id = json['id']
       if isinstance(json.get('content'), dict):
         self.content = json['content']['value']
@@ -628,7 +668,7 @@ class Person:
     self.json = json
     # Follow Postel's law
     try:
-      json = _prune_json(json)
+      json = _prune_json_envelope(json)
       self.uri = \
         json.get('uri') or json.get('profileUrl')
       if json.get('id'):
@@ -698,7 +738,6 @@ class Result:
       elif self.result_type == Post and not self.singular:
         self._data = self._parse_posts(self._json)
       elif self.result_type == Comment and self.singular:
-        # TODO
         self._data = self._parse_comment(self._json)
       elif self.result_type == Comment and not self.singular:
         self._data = self._parse_comments(self._json)
@@ -756,7 +795,9 @@ class Result:
     try:
       if json.get('error'):
         self.parse_error(json)
-      json = _prune_json(json)
+      json = _prune_json_envelope(json)
+      if isinstance(json, list) and len(json) == 1:
+        json = json[0]
       return Post(json, client=self.client)
     except KeyError, e:
       raise JSONParseError(
@@ -770,9 +811,11 @@ class Result:
     try:
       if json.get('error'):
         self.parse_error(json)
-      json = _prune_json(json)
+      json = _prune_json_envelope(json)
       if isinstance(json, list):
-        return [Post(post_json, client=self.client) for post_json in json]
+        return [
+          Post(post_json, client=self.client) for post_json in json
+        ]
       else:
         # The entire key is omitted when there are no results
         return []
@@ -783,14 +826,32 @@ class Result:
         exception=e
       )
 
+    def _parse_comment(self, json):
+      """Helper method for converting a comment JSON structure."""
+      try:
+        if json.get('error'):
+          self.parse_error(json)
+        json = _prune_json_envelope(json)
+        if isinstance(json, list) and len(json) == 1:
+          json = json[0]
+        return Comment(json, client=self.client)
+      except KeyError, e:
+        raise JSONParseError(
+          uri=self._http_uri,
+          json=json,
+          exception=e
+        )
+
   def _parse_comments(self, json):
     """Helper method for converting a set of comment JSON structures."""
     try:
       if json.get('error'):
         self.parse_error(json)
-      json = _prune_json(json)
+      json = _prune_json_envelope(json)
       if isinstance(json, list):
-        return [Comment(comment_json, client=self.client) for comment_json in json]
+        return [
+          Comment(comment_json, client=self.client) for comment_json in json
+        ]
       else:
         # The entire key is omitted when there are no results
         return []
@@ -806,7 +867,9 @@ class Result:
     try:
       if json.get('error'):
         self.parse_error(json)
-      json = _prune_json(json)
+      json = _prune_json_envelope(json)
+      if isinstance(json, list) and len(json) == 1:
+        json = json[0]
       return Person(json, client=self.client)
     except KeyError, e:
       raise JSONParseError(
@@ -820,9 +883,11 @@ class Result:
     try:
       if json.get('error'):
         self.parse_error(json)
-      json = _prune_json(json)
+      json = _prune_json_envelope(json)
       if isinstance(json, list):
-        return [Person(post_json, client=self.client) for person_json in json]
+        return [
+          Person(person_json, client=self.client) for person_json in json
+        ]
       else:
         # The entire key is omitted when there are no results
         return []
