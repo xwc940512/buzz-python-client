@@ -756,7 +756,14 @@ class Result:
       http_body=self._http_body
     )
     self._body = self._response.read()
-    self._json = simplejson.loads(self._body)
+    try:
+      self._json = simplejson.loads(self._body)
+    except Exception, e:
+      raise JSONParseError(
+        json=(self._json or self._body),
+        uri=self._http_uri,
+        exception=e
+      )
 
   def load_next(self):
     if self.next_uri:
