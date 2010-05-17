@@ -41,7 +41,7 @@ OAUTH_REQUEST_TOKEN_URI = \
 OAUTH_ACCESS_TOKEN_URI = \
   'https://www.google.com/accounts/OAuthGetAccessToken'
 OAUTH_AUTHORIZATION_URI = \
-  'https://sandbox.google.com/buzz/api/auth/OAuthAuthorizeToken'
+  'https://www.google.com/buzz/api/auth/OAuthAuthorizeToken'
 # OAUTH_AUTHORIZATION_URI = \
 #   'https://www.google.com/buzz/api/auth/OAuthAuthorizeToken'
 # OAUTH_AUTHORIZATION_URI = \
@@ -52,9 +52,10 @@ class RetrieveError(Exception):
   This exception gets raised if there was some kind of HTTP or network error
   while accessing the API.
   """
-  def __init__(self, uri, message):
+  def __init__(self, uri, message, json=None):
     self._uri = uri
     self._message = message
+    self._json = json
 
   def __str__(self):
     return 'Could not retrieve \'%s\': %s' % (self._uri, self._message)
@@ -65,26 +66,26 @@ class JSONParseError(Exception):
   what the client was expecting.  If this exception is raised, it's typically
   a bug.
   """
-  def __init__(self, dictionary, uri=None, exception=None):
+  def __init__(self, json, uri=None, exception=None):
     self._uri = uri
-    self._dictionary = dictionary
+    self._json = json
     self._exception = exception
 
   def __str__(self):
     if self._uri:
       if self._exception and isinstance(self._exception, KeyError):
         return 'Parse failed for \'%s\': KeyError(%s) on %s' % (
-          self._uri, str(self._exception), self._dictionary
+          self._uri, str(self._exception), self._json
         )
       else:
-        return 'Parse failed for \'%s\': %s' % (self._uri, self._dictionary)
+        return 'Parse failed for \'%s\': %s' % (self._uri, self._json)
     else:
       if self._exception and isinstance(self._exception, KeyError):
         return 'Parse failed: KeyError(%s) on %s' % (
-          str(self._exception), self._dictionary
+          str(self._exception), self._json
         )
       else:
-        return 'Parse failed: %s' % (self._dictionary)
+        return 'Parse failed: %s' % (self._json)
 
 def _prune_json(json):
   # Follow Postel's law
@@ -103,6 +104,23 @@ def _prune_json(json):
 
 class Client:
   def __init__(self):
+    # Make sure we're always getting the right HTTP connection, even if
+    # API_PREFIX changes
+    parsed = urlparse.urlparse(API_PREFIX)
+    authority = parsed[1].split(':')
+    if len(authority) == 1:
+      # Incidentally, this is why unpacking shouldn't complain about
+      # size mismatch on the array.  Bad Python.  Stop trying to protect me!
+      self._host = authority[0]
+      self._port = None
+    else:
+      self._host, self._port = authority
+    if not self._port:
+      if parsed[0] == 'https':
+        self._port = 443
+      else:
+        self._port = 80
+
     self._http_connection = None
 
     # OAuth state
@@ -120,11 +138,12 @@ class Client:
     # if not self._http_connection:
     #   self._http_connection = httplib.HTTPSConnection('www.google.com')
     if not self._http_connection:
-      self._http_connection = httplib.HTTPSConnection('www.googleapis.com')
-    if self._http_connection.host != 'www.googleapis.com':
-      raise ValueError("HTTPS Connection must be for 'www.googleapis.com'.")
-    # if self._http_connection.port != 443:
-    #   raise ValueError("HTTPS Connection must be for port 443.")
+      if self._port == 443:
+        self._http_connection = httplib.HTTPSConnection(self._host)
+      elif self._port == 80:
+        self._http_connection = httplib.HTTPConnection(self._host)
+      else:
+        self._http_connection = httplib.HTTPConnection(self._host, self._port)
     return self._http_connection
 
   def build_oauth_consumer(self, key, secret):
@@ -303,18 +322,32 @@ class Client:
       oauth_request = self.build_oauth_request(http_method, http_uri)
       http_headers.update(oauth_request.to_header())
     try:
-      http_connection.request(http_method, http_uri, headers=http_headers)
-      response = http_connection.getresponse()
-    except (httplib.BadStatusLine, httplib.CannotSendRequest):
-      if http_connection and http_connection == self.http_connection:
-        # Reset the connection
-        http_connection.close()
-        http_connection = None
-        self._http_connection = None
-        http_connection = self.http_connection
-        # Retry once
+      try:
         http_connection.request(http_method, http_uri, headers=http_headers)
         response = http_connection.getresponse()
+      except (httplib.BadStatusLine, httplib.CannotSendRequest):
+        if http_connection and http_connection == self.http_connection:
+          # Reset the connection
+          http_connection.close()
+          http_connection = None
+          self._http_connection = None
+          http_connection = self.http_connection
+          # Retry once
+          http_connection.request(http_method, http_uri, headers=http_headers)
+          response = http_connection.getresponse()
+    except Exception, e:
+      if hasattr(e, '_json'):
+        # If the raw JSON of the error is available, we don't want to lose it.
+        raise RetrieveError(
+          uri=http_uri,
+          message=str(e),
+          json=e._json
+        )
+      else:
+        raise RetrieveError(
+          uri=http_uri,
+          message=str(e)
+        )
     return response
 
   # People APIs
@@ -349,7 +382,17 @@ class Client:
     api_endpoint += "?alt=json"
     return Result(self, 'GET', api_endpoint, result_type=Post)
 
-  def comments(self, actor_id, post_id):
+  def post(self, post_id, actor_id='0'):
+    if isinstance(actor_id, Person):
+      actor_id = actor_id.id
+    if isinstance(post_id, Post):
+      post_id = post_id.id
+    api_endpoint = API_PREFIX + "/activities/" + actor_id + \
+      "/@self/" + post_id
+    api_endpoint += "?alt=json"
+    return Result(self, 'GET', api_endpoint, result_type=Post, singular=True)
+
+  def comments(self, post_id, actor_id='0'):
     if isinstance(actor_id, Person):
       actor_id = actor_id.id
     if isinstance(post_id, Post):
@@ -359,7 +402,7 @@ class Client:
     api_endpoint += "?alt=json"
     return Result(self, 'GET', api_endpoint, result_type=Comment)
 
-  def likers(self, actor_id, post_id):
+  def likers(self, post_id, actor_id='0'):
     if isinstance(actor_id, Person):
       actor_id = actor_id.id
     if isinstance(post_id, Post):
@@ -370,11 +413,11 @@ class Client:
     return Result(self, 'GET', api_endpoint, result_type=Person)
 
   # Likes
-  def liked_posts(self, user_id=None):
+  def liked_posts(self, user_id='@me'):
     """Returns a collection of posts that a user has liked."""
-    return self.posts(type_id='@liked', user_id)
+    return self.posts(type_id='@liked', user_id=user_id)
 
-  def like_post(self, actor_id, post_id):
+  def like_post(self, post_id, actor_id='0'):
     """
     Likes a post.
     """
@@ -387,7 +430,7 @@ class Client:
     api_endpoint += "?alt=json"
     return Result(self, 'PUT', api_endpoint, result_type=None, singular=True)
 
-  def unlike_post(self, actor_id, post_id):
+  def unlike_post(self, post_id, actor_id='0'):
     """
     Unlikes a post.
     """
@@ -406,7 +449,7 @@ class Client:
     """Returns a collection of posts that the current user has muted."""
     return self.posts(type_id='@muted', user_id='@me')
 
-  def mute_post(self, actor_id, post_id):
+  def mute_post(self, post_id, actor_id='0'):
     """
     Mutes a post.
     """
@@ -419,7 +462,7 @@ class Client:
     api_endpoint += "?alt=json"
     return Result(self, 'PUT', api_endpoint, result_type=None, singular=True)
 
-  def unmute_post(self, actor_id, post_id):
+  def unmute_post(self, post_id, actor_id='0'):
     """
     Unmutes a post.
     """
@@ -481,6 +524,8 @@ class Post:
         self.title = json['title']['value']
       else:
         self.title = json['title']
+      self.link = json['links']['alternate'][0]
+      self.uri = self.link['href']
       if isinstance(json.get('verb'), list):
         self.verb = json['verb'][0]
       elif json.get('verb'):
@@ -496,54 +541,48 @@ class Post:
       # TODO: handle timestamps
     except KeyError, e:
       raise JSONParseError(
-        dictionary=json,
+        json=json,
         exception=e
       )
 
   def __repr__(self):
     return "<Post[%s]>" % self.id
 
-  @property
-  def comments(self):
-    if not self._comments:
-      if self.client:
-        self._comments = self.client.comments(self.actor.id, self.id)
-      else:
-        raise ValueError('Cannot get comments without a client reference.')
-    return self._comments
+  def comments(self, client=None):
+    """Syntactic sugar for `client.comments(post)`."""
+    if not client:
+      client = self.client
+    return self.client.comments(post_id=self.id, actor_id=self.actor.id)
 
-  @property
-  def likers(self):
-    if not self._likers:
-      if self.client:
-        self._likers = self.client.likers(self.actor.id, self.id)
-      else:
-        raise ValueError('Cannot get likers without a client reference.')
-    return self._likers
+  def likers(self, client=None):
+    """Syntactic sugar for `client.likers(post)`."""
+    if not client:
+      client = self.client
+    return self.client.likers(post_id=self.id, actor_id=self.actor.id)
 
   def like(self, client=None):
     """Syntactic sugar for `client.like_post(post)`."""
     if not client:
       client = self.client
-    return client.like_post(self.actor.id, self.id)
+    return client.like_post(post_id=self.id, actor_id=self.actor.id)
 
   def unlike(self, client=None):
     """Syntactic sugar for `client.unlike_post(post)`."""
     if not client:
       client = self.client
-    return client.unlike_post(self.actor.id, self.id)
+    return client.unlike_post(post_id=self.id, actor_id=self.actor.id)
 
   def mute(self, client=None):
     """Syntactic sugar for `client.mute_post(post)`."""
     if not client:
       client = self.client
-    return client.mute_post(self.actor.id, self.id)
+    return client.mute_post(post_id=self.id, actor_id=self.actor.id)
 
   def unmute(self, client=None):
     """Syntactic sugar for `client.unmute_post(post)`."""
     if not client:
       client = self.client
-    return client.unmute_post(self.actor.id, self.id)
+    return client.unmute_post(post_id=self.id, actor_id=self.actor.id)
 
 class Comment:
   def __init__(self, json, client=None):
@@ -570,18 +609,18 @@ class Comment:
       # TODO: handle timestamps
     except KeyError, e:
       raise JSONParseError(
-        dictionary=json,
+        json=json,
         exception=e
       )
 
   def __repr__(self):
     return "<Comment[%s]>" % self.id
 
-  def post(self):
-    if not self._post:
-      # TODO: implement this
-      print self._post_id
-    return self._post
+  def post(self, client=None):
+    """Syntactic sugar for `client.post(post)`."""
+    if not client:
+      client = self.client
+    return client.post(post_id=self._post_id, actor_id=self.actor.id)
 
 class Person:
   def __init__(self, json, client=None):
@@ -608,16 +647,18 @@ class Person:
         self.photos = json.get('photos')
     except KeyError, e:
       raise JSONParseError(
-        dictionary=json,
+        json=json,
         exception=e
       )
 
   def __repr__(self):
-    return "<Person[%s]>" % self.id
+    return "<Person[%s, %s]>" % (self.name, self.id)
 
-  @property
-  def posts(self):
-    return self.client.posts(user_id=self.id)
+  def posts(self, client=None):
+    """Syntactic sugar for `client.posts(person)`."""
+    if not client:
+      client = self.client
+    return client.posts(user_id=self.id)
 
 class Result:
   def __init__(self, client, http_method, http_uri, http_headers={}, \
@@ -651,10 +692,8 @@ class Result:
       if not self._response:
         self.reload()
       if self._response.status != 200:
-        print self._json
         self._parse_error(self._json)
       if self.result_type == Post and self.singular:
-        # TODO
         self._data = self._parse_post(self._json)
       elif self.result_type == Post and not self.singular:
         self._data = self._parse_posts(self._json)
@@ -712,6 +751,20 @@ class Result:
           return None
     return self._next_uri
 
+  def _parse_post(self, json):
+    """Helper method for converting a post JSON structure."""
+    try:
+      if json.get('error'):
+        self.parse_error(json)
+      json = _prune_json(json)
+      return Post(json, client=self.client)
+    except KeyError, e:
+      raise JSONParseError(
+        uri=self._http_uri,
+        json=json,
+        exception=e
+      )
+
   def _parse_posts(self, json):
     """Helper method for converting a set of post JSON structures."""
     try:
@@ -726,7 +779,7 @@ class Result:
     except KeyError, e:
       raise JSONParseError(
         uri=self._http_uri,
-        dictionary=json,
+        json=json,
         exception=e
       )
 
@@ -744,7 +797,7 @@ class Result:
     except KeyError, e:
       raise JSONParseError(
         uri=self._http_uri,
-        dictionary=json,
+        json=json,
         exception=e
       )
 
@@ -758,7 +811,7 @@ class Result:
     except KeyError, e:
       raise JSONParseError(
         uri=self._http_uri,
-        dictionary=json,
+        json=json,
         exception=e
       )
 
@@ -776,7 +829,7 @@ class Result:
     except KeyError, e:
       raise JSONParseError(
         uri=self._http_uri,
-        dictionary=json,
+        json=json,
         exception=e
       )
 
@@ -784,7 +837,8 @@ class Result:
     """Helper method for converting an error response to an exception."""
     raise RetrieveError(
       uri=self._http_uri,
-      message=json['error'].get('message')
+      message=json['error'].get('message'),
+      json=json
     )
 
 class ResultIterator:
