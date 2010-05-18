@@ -373,9 +373,6 @@ class Client:
 
   def followers(self, user_id='@me'):
     if isinstance(user_id, Person):
-      # You'd think we could just return directly here, but sometimes a
-      # Person object is incomplete, in which case this operation would
-      # 'upgrade' to the full Person object.
       user_id = user_id.id
     if self.oauth_access_token:
       api_endpoint = API_PREFIX + ("/people/%s/@groups/@followers" % user_id)
@@ -386,14 +383,35 @@ class Client:
 
   def following(self, user_id='@me'):
     if isinstance(user_id, Person):
-      # You'd think we could just return directly here, but sometimes a
-      # Person object is incomplete, in which case this operation would
-      # 'upgrade' to the full Person object.
       user_id = user_id.id
     if self.oauth_access_token:
       api_endpoint = API_PREFIX + ("/people/%s/@groups/@following" % user_id)
       api_endpoint += "?alt=json"
       return Result(self, 'GET', api_endpoint, result_type=Person)
+    else:
+      raise ValueError("This client doesn't have an authenticated user.")
+
+  def follow(self, user_id):
+    if isinstance(user_id, Person):
+      user_id = user_id.id
+    if self.oauth_access_token:
+      api_endpoint = API_PREFIX + (
+        "/people/@me/@groups/@following/%s" % user_id
+      )
+      api_endpoint += "?alt=json"
+      return Result(self, 'PUT', api_endpoint, result_type=None).data
+    else:
+      raise ValueError("This client doesn't have an authenticated user.")
+
+  def unfollow(self, user_id):
+    if isinstance(user_id, Person):
+      user_id = user_id.id
+    if self.oauth_access_token:
+      api_endpoint = API_PREFIX + (
+        "/people/@me/@groups/@following/%s" % user_id
+      )
+      api_endpoint += "?alt=json"
+      return Result(self, 'DELETE', api_endpoint, result_type=None).data
     else:
       raise ValueError("This client doesn't have an authenticated user.")
 
@@ -462,7 +480,7 @@ class Client:
     api_endpoint += "?alt=json"
     return Result(
       self, 'PUT', api_endpoint, result_type=None, singular=True
-    )
+    ).data
 
   def unlike_post(self, post_id, actor_id='0'):
     """
@@ -477,7 +495,7 @@ class Client:
     api_endpoint += "?alt=json"
     return Result(
       self, 'DELETE', api_endpoint, result_type=None, singular=True
-    )
+    ).data
 
   # Mutes
 
@@ -498,7 +516,7 @@ class Client:
     api_endpoint += "?alt=json"
     return Result(
       self, 'PUT', api_endpoint, result_type=None, singular=True
-    )
+    ).data
 
   def unmute_post(self, post_id, actor_id='0'):
     """
@@ -513,7 +531,7 @@ class Client:
     api_endpoint += "?alt=json"
     return Result(
       self, 'DELETE', api_endpoint, result_type=None, singular=True
-    )
+    ).data
 
   # # People
   #
@@ -693,6 +711,18 @@ class Person:
 
   def __repr__(self):
     return "<Person[%s, %s]>" % (self.name, self.id)
+
+  def follow(self, client=None):
+    """Syntactic sugar for `client.follow(person)`."""
+    if not client:
+      client = self.client
+    return client.follow(user_id=self.id)
+
+  def unfollow(self, client=None):
+    """Syntactic sugar for `client.unfollow(person)`."""
+    if not client:
+      client = self.client
+    return client.unfollow(user_id=self.id)
 
   def posts(self, client=None):
     """Syntactic sugar for `client.posts(person)`."""
