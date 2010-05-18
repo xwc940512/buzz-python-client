@@ -562,46 +562,70 @@ class Client:
     return response.read()
 
 class Post:
-  def __init__(self, json, client=None):
+  def __init__(self, json=None, client=None,
+      content=None, uri=None, verb=None, actor=None,
+      attachments=None):
     self.client = client
     self.json = json
+    self.object = None
     self._likers = None
     self._comments = None
-
-    # Follow Postel's law
-    try:
-      json = _prune_json_envelope(json)
-      self.id = json['id']
-      if isinstance(json.get('content'), dict):
-        self.content = json['content']['value']
-      elif json.get('content'):
-        self.content = json['content']
-      elif json.get('object') and json['object'].get('content'):
-        self.content = json['object']['content']
-      if isinstance(json['title'], dict):
-        self.title = json['title']['value']
-      else:
-        self.title = json['title']
-      self.link = json['links']['alternate'][0]
-      self.uri = self.link['href']
-      if isinstance(json.get('verb'), list):
-        self.verb = json['verb'][0]
-      elif json.get('verb'):
-        self.verb = json['verb']
-      elif isinstance(json.get('type'), list):
-        self.verb = json['type'][0]
-      elif json.get('type'):
-        self.verb = json['type']
-      if json.get('author'):
-        self.actor = Person(json['author'], client=self.client)
-      elif json.get('actor'):
-        self.actor = Person(json['actor'], client=self.client)
-      # TODO: handle timestamps
-    except KeyError, e:
-      raise JSONParseError(
-        json=json,
-        exception=e
-      )
+    
+    if self.json:
+      # Parse the incoming JSON
+      # Follow Postel's law
+      try:
+        json = _prune_json_envelope(json)
+        self.id = json['id']
+        if isinstance(json.get('content'), dict):
+          self.content = json['content']['value']
+        elif json.get('content'):
+          self.content = json['content']
+        elif json.get('object') and json['object'].get('content'):
+          self.content = json['object']['content']
+        if isinstance(json['title'], dict):
+          self.title = json['title']['value']
+        else:
+          self.title = json['title']
+        if json.get('object'):
+          self.object = json['object']
+        self.link = json['links']['alternate'][0]
+        self.uri = self.link['href']
+        if isinstance(json.get('verb'), list):
+          self.verb = json['verb'][0]
+        elif json.get('verb'):
+          self.verb = json['verb']
+        if isinstance(json.get('type'), list):
+          self.type = json['type'][0]
+        elif json.get('type'):
+          self.type = json['type']
+        elif self.object and self.object.get('type'):
+          self.type = self.object['type']
+        if json.get('author'):
+          self.actor = Person(json['author'], client=self.client)
+        elif json.get('actor'):
+          self.actor = Person(json['actor'], client=self.client)
+        if self.object and self.object.get('attachments'):
+          self.attachments = [
+            Attachment(attachment_json, client=self.client)
+            for attachment_json
+            in self.object['attachments']
+          ]
+        else:
+          self.attachments = []
+        # TODO: handle timestamps
+      except KeyError, e:
+        raise JSONParseError(
+          json=json,
+          exception=e
+        )
+    else:
+      # Construct the post piece-wise.
+      self.content = content
+      self.uri = uri
+      self.verb = verb
+      self.actor = actor
+      self.attachments = attachments
 
   def __repr__(self):
     return "<Post[%s]>" % self.id
@@ -679,6 +703,32 @@ class Comment:
     if not client:
       client = self.client
     return client.post(post_id=self._post_id, actor_id=self.actor.id)
+
+class Attachment:
+  def __init__(self, json, client=None):
+    self.client = client
+    self.json = json
+    try:
+      json = _prune_json_envelope(json)
+      if isinstance(json.get('content'), dict):
+        self.content = json['content']['value']
+      elif json.get('content'):
+        self.content = json['content']
+      if isinstance(json['title'], dict):
+        self.title = json['title']['value']
+      else:
+        self.title = json['title']
+      self.link = json['links']['alternate'][0]
+      self.uri = self.link['href']
+      self.type = json['type']
+    except KeyError, e:
+      raise JSONParseError(
+        json=json,
+        exception=e
+      )
+      
+  def __repr__(self):
+    return "<Attachment[%s]>" % self.uri
 
 class Person:
   def __init__(self, json, client=None):
