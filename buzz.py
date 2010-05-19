@@ -156,6 +156,9 @@ class Client:
         self._http_connection = httplib.HTTPConnection(self._host, self._port)
     return self._http_connection
 
+  def use_anonymous_oauth_consumer(self):
+    self.oauth_consumer = oauth.OAuthConsumer('anonymous', 'anonymous')
+
   def build_oauth_consumer(self, key, secret):
     self.oauth_consumer = oauth.OAuthConsumer(key, secret)
 
