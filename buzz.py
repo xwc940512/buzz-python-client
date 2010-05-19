@@ -482,6 +482,13 @@ class Client:
       self, 'PUT', api_endpoint, http_body=json_string, result_type=None
     ).data
 
+  def delete_post(self, post):
+    if not post.id:
+      raise ValueError('Post must have a valid id to delete.')
+    api_endpoint = API_PREFIX + "/activities/@me/@self/" + post.id
+    api_endpoint += "?alt=json"
+    return Result(self, 'DELETE', api_endpoint, result_type=None).data
+
   def comments(self, post_id, actor_id='0'):
     if isinstance(actor_id, Person):
       actor_id = actor_id.id
@@ -491,6 +498,42 @@ class Client:
       "/@self/" + post_id + "/@comments"
     api_endpoint += "?alt=json"
     return Result(self, 'GET', api_endpoint, result_type=Comment)
+
+  def create_comment(self, comment):
+    api_endpoint = API_PREFIX + ("/activities/%s/@self/%s/@comments" % (
+      comment.post(client=self).actor.id,
+      comment.post(client=self).id
+    ))
+    api_endpoint += "?alt=json"
+    json_string = simplejson.dumps({'data': comment._json_output})
+    return Result(
+      self, 'POST', api_endpoint, http_body=json_string, result_type=None
+    ).data
+
+  def update_comment(self, comment):
+    if not comment.id:
+      raise ValueError('Comment must have a valid id to update.')
+    api_endpoint = API_PREFIX + ("/activities/%s/@self/%s/@comments/%s" % (
+      comment.actor.id,
+      comment.post(client=self).id,
+      comment.id
+    ))
+    api_endpoint += "?alt=json"
+    json_string = simplejson.dumps({'data': comment._json_output})
+    return Result(
+      self, 'PUT', api_endpoint, http_body=json_string, result_type=None
+    ).data
+
+  def delete_comment(self, comment):
+    if not comment.id:
+      raise ValueError('Comment must have a valid id to update.')
+    api_endpoint = API_PREFIX + ("/activities/%s/@self/%s/@comments/%s" % (
+      comment.actor.id,
+      comment.post(client=self).id,
+      comment.id
+    ))
+    api_endpoint += "?alt=json"
+    return Result(self, 'DELETE', api_endpoint, result_type=None).data
 
   def likers(self, post_id, actor_id='0'):
     if isinstance(actor_id, Person):
@@ -681,8 +724,6 @@ class Post:
     output = {
       'object': {}
     }
-    # if self.actor:
-    #   output['actor'] = self.actor._json_output
     if self.id:
       output['id'] = self.id
     if self.uri:
@@ -743,33 +784,37 @@ class Post:
     return client.unmute_post(post_id=self.id, actor_id=self.actor.id)
 
 class Comment:
-  def __init__(self, json, client=None):
+  def __init__(self, json=None, client=None,
+      post=None, post_id=None, content=None):
     self.client = client
     self.json = json
-    self._post = None
-    self._post_id = None
-    # Follow Postel's law
-    try:
-      json = _prune_json_envelope(json)
-      self.id = json['id']
-      if isinstance(json.get('content'), dict):
-        self.content = json['content']['value']
-      elif json.get('content'):
-        self.content = json['content']
-      elif json.get('object') and json['object'].get('content'):
-        self.content = json['object']['content']
-      if json.get('author'):
-        self.actor = Person(json['author'], client=self.client)
-      elif json.get('actor'):
-        self.actor = Person(json['actor'], client=self.client)
-      if json.get('links') and json['links'].get('inReplyTo'):
-        self._post_id = json['links']['inReplyTo'][0]['ref']
-      # TODO: handle timestamps
-    except KeyError, e:
-      raise JSONParseError(
-        json=json,
-        exception=e
-      )
+    self.id = None
+    self.content = content
+    self._post = post
+    self._post_id = post_id
+    if json:
+      # Follow Postel's law
+      try:
+        json = _prune_json_envelope(json)
+        self.id = json['id']
+        if isinstance(json.get('content'), dict):
+          self.content = json['content']['value']
+        elif json.get('content'):
+          self.content = json['content']
+        elif json.get('object') and json['object'].get('content'):
+          self.content = json['object']['content']
+        if json.get('author'):
+          self.actor = Person(json['author'], client=self.client)
+        elif json.get('actor'):
+          self.actor = Person(json['actor'], client=self.client)
+        if json.get('links') and json['links'].get('inReplyTo'):
+          self._post_id = json['links']['inReplyTo'][0]['ref']
+        # TODO: handle timestamps
+      except KeyError, e:
+        raise JSONParseError(
+          json=json,
+          exception=e
+        )
 
   def __repr__(self):
     return "<Comment[%s]>" % self.id
@@ -777,26 +822,22 @@ class Comment:
   @property
   def _json_output(self):
     output = {}
-    if self.actor:
-      actor = self.actor
-    else:
-      actor = self.client.person().data
-    output['actor'] = actor._json_output
     if self.id:
       output['id'] = self.id
-    if self.uri:
-      output['links'] = {
-        u'alternate': [{u'href': self.uri, u'type': u'text/html'}]
-      }
     if self.content:
       output['content'] = self.content
     return output
 
   def post(self, client=None):
     """Syntactic sugar for `client.post(post)`."""
-    if not client:
-      client = self.client
-    return client.post(post_id=self._post_id, actor_id=self.actor.id)
+    if not self._post:
+      if not self._post_id:
+        raise ValueError('Could not determine comment\'s parent post.')
+      if not client:
+        client = self.client
+      self._post = \
+        client.post(post_id=self._post_id, actor_id=self.actor.id).data
+    return self._post
 
 class Attachment:
   def __init__(self, json=None, client=None,
@@ -868,6 +909,7 @@ class Person:
   def __init__(self, json, client=None):
     self.client = client
     self.json = json
+    self.profile_name = None
     # Follow Postel's law
     try:
       json = _prune_json_envelope(json)
@@ -887,6 +929,8 @@ class Person:
         self.uris = json.get('urls')
       if json.get('photos'):
         self.photos = json.get('photos')
+      if not re.search('^\\d+$', re.search('/([^/]*?)$', self.uri).group(1)):
+        self.profile_name = re.search('/([^/]*?)$', self.uri).group(1)
     except KeyError, e:
       raise JSONParseError(
         json=json,
