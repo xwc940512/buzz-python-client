@@ -650,13 +650,15 @@ class Client:
 
 class Post:
   def __init__(self, json=None, client=None,
-      content=None, uri=None, verb=None, actor=None, geocode=None,
+      content=None, uri=None, verb=None, actor=None,
+      geocode=None, place_id=None,
       attachments=None):
     self.client = client
     self.json = json
     self.id = None
     self.object = None
     self.type=None
+    self.place_name=None
     
     # Construct the post piece-wise.
     self.content = content
@@ -664,6 +666,7 @@ class Post:
     self.verb = verb
     self.actor = actor
     self.geocode = geocode
+    self.place_id = place_id
     self.attachments = attachments
     
     self._likers = None
@@ -713,6 +716,8 @@ class Post:
           self.attachments = []
         if json.get('geocode'):
           self.geocode = _parse_geocode(json['geocode'])
+        if json.get('placeName'):
+          self.place_name = json['placeName']
         # TODO: handle timestamps
       except KeyError, e:
         raise JSONParseError(
@@ -745,6 +750,12 @@ class Post:
       output['object']['type'] = 'note'
     if self.verb:
       output['verb'] = self.verb
+    if self.geocode:
+      output['geocode'] = '%s %s' % (
+        str(self.geocode[0]), str(self.geocode[1])
+      )
+    if self.place_id:
+      output['placeId'] = self.place_id
     if self.attachments:
       output['object']['attachments'] = [
         attachment._json_output for attachment in self.attachments
