@@ -250,9 +250,8 @@ class Client:
       raise ValueError("Client is missing consumer.")
     auth_uri = OAUTH_AUTHORIZATION_URI + \
       "?oauth_token=" + token.key + \
-      "&domain=" + self.oauth_consumer.key
-    for scope in self.oauth_scopes:
-      auth_uri += "&scope=" + scope
+      "&domain=" + self.oauth_consumer.key + \
+      "&scope=" + '%20'.join(self.oauth_scopes)
     return auth_uri
 
   def fetch_oauth_access_token(self, verifier=None, token=None):
