@@ -33,7 +33,7 @@ try:
 except (ImportError):
   import simplejson
 
-API_PREFIX = "https://apiary-test.corp.google.com/buzz/v1"
+API_PREFIX = "https://www.googleapis.com/buzz/v1"
 READONLY_SCOPE = 'https://www.googleapis.com/auth/buzz.readonly'
 FULL_ACCESS_SCOPE = 'https://www.googleapis.com/auth/buzz'
 
@@ -43,10 +43,6 @@ OAUTH_ACCESS_TOKEN_URI = \
   'https://www.google.com/accounts/OAuthGetAccessToken'
 OAUTH_AUTHORIZATION_URI = \
   'https://www.google.com/buzz/api/auth/OAuthAuthorizeToken'
-# OAUTH_AUTHORIZATION_URI = \
-#   'https://www.google.com/buzz/api/auth/OAuthAuthorizeToken'
-# OAUTH_AUTHORIZATION_URI = \
-#   'https://www.google.com/accounts/OAuthAuthorizeToken'
 
 class RetrieveError(Exception):
   """
