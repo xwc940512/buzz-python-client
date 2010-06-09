@@ -1,4 +1,9 @@
 syntax: glob
 *.pyc
 ._*
+*,cover
 .DS_Store
+.coverage
+cover
+incantation.py
+oauth.yaml

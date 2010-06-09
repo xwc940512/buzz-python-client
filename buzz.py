@@ -325,8 +325,8 @@ class Client:
                                http_connection=None, http_body=''):
     if not http_connection:
       http_connection = self.http_connection
-    if not self.oauth_consumer:
-      raise ValueError("Client is missing consumer.")
+    if not self.oauth_consumer and http_headers.get('Authorization'):
+      del http_headers['Authorization']
     http_headers.update({
       'Content-Length': len(http_body)
     })
@@ -334,7 +334,7 @@ class Client:
       http_headers.update({
         'Content-Type': 'application/json'
       })
-    if self.oauth_access_token:
+    if self.oauth_consumer and self.oauth_access_token:
       # Build OAuth request and add OAuth header if we've got an access token
       oauth_request = self.build_oauth_request(http_method, http_uri)
       http_headers.update(oauth_request.to_header())
@@ -395,22 +395,16 @@ class Client:
   def followers(self, user_id='@me'):
     if isinstance(user_id, Person):
       user_id = user_id.id
-    if self.oauth_access_token:
-      api_endpoint = API_PREFIX + ("/people/%s/@groups/@followers" % user_id)
-      api_endpoint += "?alt=json"
-      return Result(self, 'GET', api_endpoint, result_type=Person)
-    else:
-      raise ValueError("This client doesn't have an authenticated user.")
+    api_endpoint = API_PREFIX + ("/people/%s/@groups/@followers" % user_id)
+    api_endpoint += "?alt=json"
+    return Result(self, 'GET', api_endpoint, result_type=Person)
 
   def following(self, user_id='@me'):
     if isinstance(user_id, Person):
       user_id = user_id.id
-    if self.oauth_access_token:
-      api_endpoint = API_PREFIX + ("/people/%s/@groups/@following" % user_id)
-      api_endpoint += "?alt=json"
-      return Result(self, 'GET', api_endpoint, result_type=Person)
-    else:
-      raise ValueError("This client doesn't have an authenticated user.")
+    api_endpoint = API_PREFIX + ("/people/%s/@groups/@following" % user_id)
+    api_endpoint += "?alt=json"
+    return Result(self, 'GET', api_endpoint, result_type=Person)
 
   def follow(self, user_id):
     if isinstance(user_id, Person):
@@ -615,16 +609,6 @@ class Client:
       self, 'DELETE', api_endpoint, result_type=None, singular=True
     ).data
 
-  # # People
-  #
-  # def followers(self, user_id):
-  #
-  # def following(self, user_id):
-  #
-  # def follow(self, user_id):
-  #
-  # def unfollow(self, user_id):
-
   # OAuth debugging
 
   def oauth_token_info(self):
@@ -728,9 +712,13 @@ class Post:
 
   def __repr__(self):
     if not self.public:
-      return "<Post[%s] (private)>" % self.id
+      return (u'<Post[%s] (private)>' % self.id).encode(
+        'ASCII', 'ignore'
+      )
     else:
-      return "<Post[%s]>" % self.id
+      return (u'<Post[%s]>' % self.id).encode(
+        'ASCII', 'ignore'
+      )
   
   @property
   def public(self):
@@ -845,7 +833,9 @@ class Comment:
         )
 
   def __repr__(self):
-    return "<Comment[%s]>" % self.id
+    return (u'<Comment[%s]>' % self.id).encode(
+      'ASCII', 'ignore'
+    )
 
   @property
   def _json_output(self):
@@ -908,7 +898,9 @@ class Attachment:
         )
 
   def __repr__(self):
-    return "<Attachment[%s]>" % self.uri
+    return (u'<Attachment[%s]>' % self.uri).encode(
+      'ASCII', 'ignore'
+    )
 
   @property
   def _json_output(self):
@@ -966,7 +958,9 @@ class Person:
       )
 
   def __repr__(self):
-    return "<Person[%s, %s]>" % (self.name, self.id)
+    return (u'<Person[%s, %s]>' % (self.name, self.id)).encode(
+      'ASCII', 'ignore'
+    )
 
   @property
   def _json_output(self):
