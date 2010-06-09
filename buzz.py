@@ -539,71 +539,58 @@ class Client:
     return Result(self, 'GET', api_endpoint, result_type=Person)
 
   # Likes
-  def liked_posts(self, user_id='@me'):
-    """Returns a collection of posts that a user has liked."""
-    return self.posts(type_id='@liked', user_id=user_id)
+  # def liked_posts(self, user_id='@me'):
+  #   """Returns a collection of posts that a user has liked."""
+  #   return self.posts(type_id='@liked', user_id=user_id)
 
-  def like_post(self, post_id, actor_id='0'):
+  def like_post(self, post_id):
     """
     Likes a post.
     """
-    if isinstance(actor_id, Person):
-      actor_id = actor_id.id
     if isinstance(post_id, Post):
       post_id = post_id.id
-    api_endpoint = API_PREFIX + "/activities/" + actor_id + \
-      "/@liked/" + post_id
+    api_endpoint = API_PREFIX + "/activities/@me/@liked/" + post_id
     api_endpoint += "?alt=json"
     return Result(
       self, 'PUT', api_endpoint, result_type=None, singular=True
     ).data
 
-  def unlike_post(self, post_id, actor_id='0'):
+  def unlike_post(self, post_id):
     """
     Unlikes a post.
     """
-    if isinstance(actor_id, Person):
-      actor_id = actor_id.id
     if isinstance(post_id, Post):
       post_id = post_id.id
-    api_endpoint = API_PREFIX + "/activities/" + actor_id + \
-      "/@liked/" + post_id
+    api_endpoint = API_PREFIX + "/activities/@me/@liked/" + post_id
     api_endpoint += "?alt=json"
     return Result(
       self, 'DELETE', api_endpoint, result_type=None, singular=True
     ).data
 
   # Mutes
+  # def muted_posts(self):
+  #   """Returns a collection of posts that the current user has muted."""
+  #   return self.posts(type_id='@muted', user_id='@me')
 
-  def muted_posts(self):
-    """Returns a collection of posts that the current user has muted."""
-    return self.posts(type_id='@muted', user_id='@me')
-
-  def mute_post(self, post_id, actor_id='0'):
+  def mute_post(self, post_id):
     """
     Mutes a post.
     """
-    if isinstance(actor_id, Person):
-      actor_id = actor_id.id
     if isinstance(post_id, Post):
       post_id = post_id.id
-    api_endpoint = API_PREFIX + "/activities/" + actor_id + \
-      "/@muted/" + post_id
+    api_endpoint = API_PREFIX + "/activities/@me/@muted/" + post_id
     api_endpoint += "?alt=json"
     return Result(
       self, 'PUT', api_endpoint, result_type=None, singular=True
     ).data
 
-  def unmute_post(self, post_id, actor_id='0'):
+  def unmute_post(self, post_id):
     """
     Unmutes a post.
     """
-    if isinstance(actor_id, Person):
-      actor_id = actor_id.id
     if isinstance(post_id, Post):
       post_id = post_id.id
-    api_endpoint = API_PREFIX + "/activities/" + actor_id + \
-      "/@muted/" + post_id
+    api_endpoint = API_PREFIX + "/activities/@me/@muted/" + post_id
     api_endpoint += "?alt=json"
     return Result(
       self, 'DELETE', api_endpoint, result_type=None, singular=True
@@ -779,25 +766,25 @@ class Post:
     """Syntactic sugar for `client.like_post(post)`."""
     if not client:
       client = self.client
-    return client.like_post(post_id=self.id, actor_id=self.actor.id)
+    return client.like_post(post_id=self.id)
 
   def unlike(self, client=None):
     """Syntactic sugar for `client.unlike_post(post)`."""
     if not client:
       client = self.client
-    return client.unlike_post(post_id=self.id, actor_id=self.actor.id)
+    return client.unlike_post(post_id=self.id)
 
   def mute(self, client=None):
     """Syntactic sugar for `client.mute_post(post)`."""
     if not client:
       client = self.client
-    return client.mute_post(post_id=self.id, actor_id=self.actor.id)
+    return client.mute_post(post_id=self.id)
 
   def unmute(self, client=None):
     """Syntactic sugar for `client.unmute_post(post)`."""
     if not client:
       client = self.client
-    return client.unmute_post(post_id=self.id, actor_id=self.actor.id)
+    return client.unmute_post(post_id=self.id)
 
 class Comment:
   def __init__(self, json=None, client=None,
@@ -806,6 +793,7 @@ class Comment:
     self.json = json
     self.id = None
     self.content = content
+    self.actor = None
     self._post = post
     self._post_id = post_id
     if json:
@@ -853,8 +841,12 @@ class Comment:
         raise ValueError('Could not determine comment\'s parent post.')
       if not client:
         client = self.client
-      self._post = \
-        client.post(post_id=self._post_id, actor_id=self.actor.id).data
+      if self.actor:
+        self._post = \
+          client.post(post_id=self._post_id, actor_id=self.actor.id).data
+      else:
+        self._post = \
+          client.post(post_id=self._post_id).data
     return self._post
 
 class Attachment:
