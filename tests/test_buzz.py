@@ -1,6 +1,7 @@
 import sys
 import buzz
 import time
+from pprint import pprint
 try:
   import yaml
 except (ImportError):
@@ -18,10 +19,23 @@ BUZZ_TESTING_ID = '110842231205170942808'
 BUZZ_TESTING_ACCOUNT = 'buzzapitesting'
 BUZZ_TARGET_ID = '107807692475771887386'
 BUZZ_TARGET_ACCOUNT = 'hikingfan'
+BUZZ_POST_ID = 'tag:google.com,2010:buzz:z12wdlxi2pmnwj5df23bihy5mkqmuvbpa04'
 
 CLIENT = buzz.Client()
 CLIENT.build_oauth_consumer(OAUTH_CONSUMER_KEY, OAUTH_CONSUMER_SECRET)
 CLIENT.build_oauth_access_token(OAUTH_TOKEN_KEY, OAUTH_TOKEN_SECRET)
+
+def clear_posts():
+  # Make sure we don't have any posts
+  posts = CLIENT.posts()
+  for post in posts:
+    CLIENT.delete_post(post)
+
+def create_test_post():
+  post = buzz.Post(content="This is a test post.")
+  CLIENT.create_post(post)
+  time.sleep(0.3)
+  return CLIENT.posts().data[0]
 
 # For the most part, these tests do not rely on any specific piece of data
 # being returned by the API.  Mostly they verify that an exception has not
@@ -118,7 +132,8 @@ def test_following_other():
     "Should have been able to get the list of people being followed."
 
 def test_follow():
-  CLIENT.follow(BUZZ_TARGET_ID)
+  person = CLIENT.person(BUZZ_TARGET_ID).data
+  person.follow()
   # Give the API time to catch up
   time.sleep(0.3)
   followers = CLIENT.followers(BUZZ_TARGET_ID).data
@@ -130,8 +145,9 @@ def test_follow():
   CLIENT.unfollow(BUZZ_TARGET_ID)
 
 def test_unfollow():
-  CLIENT.follow(BUZZ_TARGET_ID)
-  CLIENT.unfollow(BUZZ_TARGET_ID)
+  person = CLIENT.person(BUZZ_TARGET_ID).data
+  person.follow()
+  person.unfollow()
   # Give the API time to catch up
   time.sleep(0.3)
   followers = CLIENT.followers(BUZZ_TARGET_ID).data
@@ -162,11 +178,146 @@ def test_posts_me():
   posts = result.data
   assert isinstance(posts, list), \
     "Could not obtain reference to the account's posts."
+  for post in posts:
+    assert isinstance(post, buzz.Post), \
+      "Could not obtain reference to the post."
 
 def test_posts_other():
   client = buzz.Client()
-  print client.oauth_consumer
   result = client.posts(type_id='@public', user_id=BUZZ_TESTING_ID)
   posts = result.data
   assert isinstance(posts, list), \
     "Could not obtain reference to the account's posts."
+  for post in posts:
+    assert isinstance(post, buzz.Post), \
+      "Could not obtain reference to the post."
+
+def test_consumption_me():
+  result = CLIENT.posts(type_id='@consumption')
+  posts = result.data
+  assert isinstance(posts, list), \
+    "Could not obtain reference to the account's posts."
+  for post in posts:
+    assert isinstance(post, buzz.Post), \
+      "Could not obtain reference to the post."
+
+def test_consumption_other():
+  client = buzz.Client()
+  try:
+    client.posts(type_id='@consumption', user_id=BUZZ_TESTING_ID).data
+    assert False, "Consumption feeds should only be available for @me."
+  except:
+    assert True, "Great, it worked."
+
+def test_post():
+  client = buzz.Client()
+  result = client.post(post_id=BUZZ_POST_ID)
+  post = result.data
+  assert isinstance(post, buzz.Post), \
+    "Could not obtain reference to the post."
+
+def test_create_post():
+  clear_posts()
+  post = create_test_post()
+  assert post.content == "This is a test post."
+  assert isinstance(post, buzz.Post), \
+    "Could not obtain reference to the post."
+
+def test_update_post():
+  clear_posts()
+  post = create_test_post()
+  post.content = "This is updated content."
+  CLIENT.update_post(post)
+  time.sleep(0.3)
+  post = CLIENT.posts().data[0]
+  assert post.content == "This is updated content."
+  assert isinstance(post, buzz.Post), \
+    "Could not obtain reference to the post."
+
+def test_delete_post():
+  create_test_post()
+  clear_posts()
+  assert CLIENT.posts().data == []
+
+def test_comments():
+  client = buzz.Client()
+  result = client.comments(post_id=BUZZ_POST_ID)
+  comments = result.data
+  assert isinstance(comments, list), \
+    "Could not obtain reference to the account's posts."
+  for comment in comments:
+    assert isinstance(comment, buzz.Comment), \
+      "Could not obtain reference to the comment."
+
+def test_create_comment():
+  clear_posts()
+  post = create_test_post()
+  comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
+  CLIENT.create_comment(comment)
+  time.sleep(0.3)
+  comments = post.comments().data
+  assert isinstance(comments, list), \
+    "Could not obtain reference to the account's posts."
+  comment = comments[0]
+  assert isinstance(comment, buzz.Comment), \
+    "Could not obtain reference to the comment."
+  assert comment.content == "This is a test comment."
+
+def test_update_comment():
+  clear_posts()
+  post = create_test_post()
+  comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
+  CLIENT.create_comment(comment)
+  time.sleep(0.3)
+  comment = post.comments().data[0]
+  comment.content = "This is updated content."
+  CLIENT.update_comment(comment)
+  time.sleep(0.3)
+  comment = post.comments().data[0]
+  assert comment.content == "This is updated content."
+
+def test_delete_comment():
+  clear_posts()
+  post = create_test_post()
+  comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
+  CLIENT.create_comment(comment)
+  time.sleep(0.3)
+  comments = post.comments().data
+  comment = comments[0]
+  assert comments != []
+  CLIENT.delete_comment(comment)
+  time.sleep(0.3)
+  comments = post.comments().data
+  assert comments == []
+
+def test_like_post():
+  post = CLIENT.post(post_id=BUZZ_POST_ID).data
+  # We can only verify that this doesn't throw an error
+  post.like()
+
+def test_unlike_post():
+  post = CLIENT.post(post_id=BUZZ_POST_ID).data
+  # We can only verify that this doesn't throw an error
+  post.unlike()
+
+def test_post_likers():
+  post = CLIENT.post(post_id=BUZZ_POST_ID).data
+  likers = post.likers().data
+  assert isinstance(likers, list), \
+    "Should have been able to get the list of likers."
+
+# def test_liked_posts():
+#   posts = CLIENT.liked_posts().data
+
+def test_mute_post():
+  post = CLIENT.post(post_id=BUZZ_POST_ID).data
+  # We can only verify that this doesn't throw an error
+  post.mute()
+
+def test_unmute_post():
+  post = CLIENT.post(post_id=BUZZ_POST_ID).data
+  # We can only verify that this doesn't throw an error
+  post.unmute()
+
+# def test_muted_posts():
+#   posts = CLIENT.muted_posts().data
