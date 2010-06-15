@@ -26,7 +26,7 @@ Common Tasks
     # Persist the request_token
     authorization_url = client.build_oauth_authorization_url()
     self.redirect(authorization_url)
-  - Upgrading to an access token::
+  - Exchanging a request token for an access token::
     import buzz
     client = buzz.Client()
     client.build_oauth_consumer('your-app.appspot.com', 'consumer_secret')
