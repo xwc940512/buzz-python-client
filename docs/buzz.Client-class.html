@@ -56,6 +56,63 @@
 </table>
 <!-- ==================== CLASS DESCRIPTION ==================== -->
 <h1 class="epydoc">Class Client</h1><p class="nomargin-top"><span class="codelink"><a href="buzz-pysrc.html#Client">source&nbsp;code</a></span></p>
+<p>The <a href="buzz.Client-class.html" class="link">Client</a> object is
+  the primary method of making calls against the Buzz API.  It can be used 
+  with or without authentication.  It attempts to reuse HTTP connections 
+  whenever possible.  Currently, authentication is done via OAuth.</p>
+  <h1 class="heading">Examples</h1>
+    <ul>
+      <li>
+        Authentication
+        <ul>
+          <li>
+            Getting the request token:
+<pre class="literalblock">
+ import buzz
+ client = buzz.Client()
+ client.build_oauth_consumer('your-app.appspot.com', 'consumer_secret')
+ client.oauth_scopes.append(buzz.FULL_ACCESS_SCOPE)
+ request_token = \
+   client.fetch_oauth_request_token('http://example.com/callback/')
+ # Persist the request_token
+ authorization_url = client.build_oauth_authorization_url()
+ self.redirect(authorization_url)
+</pre>
+          </li>
+          <li>
+            Upgrading to an access token:
+<pre class="literalblock">
+ import buzz
+ client = buzz.Client()
+ client.build_oauth_consumer('your-app.appspot.com', 'consumer_secret')
+ client.oauth_scopes.append(buzz.FULL_ACCESS_SCOPE)
+ # Retrieve the persisted request token
+ client.build_oauth_request_token(
+   request_token.key, request_token.secret
+ )
+ verifier = self.request.get('oauth_verifier')
+ access_token = \
+   client.fetch_oauth_access_token(verifier)
+ # Persist the access_token
+</pre>
+          </li>
+          <li>
+            Reusing an access token:
+<pre class="literalblock">
+ import buzz
+ client = buzz.Client()
+ client.build_oauth_consumer('your-app.appspot.com', 'consumer_secret')
+ client.oauth_scopes.append(buzz.FULL_ACCESS_SCOPE)
+ # Retrieve the persisted access token
+ client.build_oauth_access_token(
+   access_token.key, access_token.secret
+ )
+</pre>
+          </li>
+        </ul>
+      </li>
+    </ul>
+
 <!-- ==================== INSTANCE METHODS ==================== -->
 <a name="section-InstanceMethods"></a>
 <table class="summary" border="1" cellpadding="3"
@@ -95,7 +152,9 @@
     </td><td class="summary">
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td><span class="summary-sig"><a name="use_anonymous_oauth_consumer"></a><span class="summary-sig-name">use_anonymous_oauth_consumer</span>(<span class="summary-sig-arg">self</span>)</span></td>
+          <td><span class="summary-sig"><a href="buzz.Client-class.html#use_anonymous_oauth_consumer" class="summary-sig-name">use_anonymous_oauth_consumer</a>(<span class="summary-sig-arg">self</span>,
+        <span class="summary-sig-arg">oauth_display_name</span>=<span class="summary-sig-default">None</span>)</span><br />
+      This method sets the consumer key and secret to 'anonymous'.</td>
           <td align="right" valign="top">
             <span class="codelink"><a href="buzz-pysrc.html#Client.use_anonymous_oauth_consumer">source&nbsp;code</a></span>
             
@@ -111,9 +170,10 @@
     </td><td class="summary">
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td><span class="summary-sig"><a name="build_oauth_consumer"></a><span class="summary-sig-name">build_oauth_consumer</span>(<span class="summary-sig-arg">self</span>,
+          <td><span class="summary-sig"><a href="buzz.Client-class.html#build_oauth_consumer" class="summary-sig-name">build_oauth_consumer</a>(<span class="summary-sig-arg">self</span>,
         <span class="summary-sig-arg">key</span>,
-        <span class="summary-sig-arg">secret</span>)</span></td>
+        <span class="summary-sig-arg">secret</span>)</span><br />
+      This method sets the consumer key and secret.</td>
           <td align="right" valign="top">
             <span class="codelink"><a href="buzz-pysrc.html#Client.build_oauth_consumer">source&nbsp;code</a></span>
             
@@ -129,9 +189,10 @@
     </td><td class="summary">
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td><span class="summary-sig"><a name="build_oauth_request_token"></a><span class="summary-sig-name">build_oauth_request_token</span>(<span class="summary-sig-arg">self</span>,
+          <td><span class="summary-sig"><a href="buzz.Client-class.html#build_oauth_request_token" class="summary-sig-name">build_oauth_request_token</a>(<span class="summary-sig-arg">self</span>,
         <span class="summary-sig-arg">key</span>,
-        <span class="summary-sig-arg">secret</span>)</span></td>
+        <span class="summary-sig-arg">secret</span>)</span><br />
+      This method sets the request token key and secret.</td>
           <td align="right" valign="top">
             <span class="codelink"><a href="buzz-pysrc.html#Client.build_oauth_request_token">source&nbsp;code</a></span>
             
@@ -553,27 +614,8 @@
     </td><td class="summary">
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td><span class="summary-sig"><a name="liked_posts"></a><span class="summary-sig-name">liked_posts</span>(<span class="summary-sig-arg">self</span>,
-        <span class="summary-sig-arg">user_id</span>=<span class="summary-sig-default"><code class="variable-quote">'</code><code class="variable-string">@me</code><code class="variable-quote">'</code></span>)</span><br />
-      Returns a collection of posts that a user has liked.</td>
-          <td align="right" valign="top">
-            <span class="codelink"><a href="buzz-pysrc.html#Client.liked_posts">source&nbsp;code</a></span>
-            
-          </td>
-        </tr>
-      </table>
-      
-    </td>
-  </tr>
-<tr>
-    <td width="15%" align="right" valign="top" class="summary">
-      <span class="summary-type">&nbsp;</span>
-    </td><td class="summary">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0">
-        <tr>
           <td><span class="summary-sig"><a name="like_post"></a><span class="summary-sig-name">like_post</span>(<span class="summary-sig-arg">self</span>,
-        <span class="summary-sig-arg">post_id</span>,
-        <span class="summary-sig-arg">actor_id</span>=<span class="summary-sig-default"><code class="variable-quote">'</code><code class="variable-string">0</code><code class="variable-quote">'</code></span>)</span><br />
+        <span class="summary-sig-arg">post_id</span>)</span><br />
       Likes a post.</td>
           <td align="right" valign="top">
             <span class="codelink"><a href="buzz-pysrc.html#Client.like_post">source&nbsp;code</a></span>
@@ -591,8 +633,7 @@
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <td><span class="summary-sig"><a name="unlike_post"></a><span class="summary-sig-name">unlike_post</span>(<span class="summary-sig-arg">self</span>,
-        <span class="summary-sig-arg">post_id</span>,
-        <span class="summary-sig-arg">actor_id</span>=<span class="summary-sig-default"><code class="variable-quote">'</code><code class="variable-string">0</code><code class="variable-quote">'</code></span>)</span><br />
+        <span class="summary-sig-arg">post_id</span>)</span><br />
       Unlikes a post.</td>
           <td align="right" valign="top">
             <span class="codelink"><a href="buzz-pysrc.html#Client.unlike_post">source&nbsp;code</a></span>
@@ -609,26 +650,8 @@
     </td><td class="summary">
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td><span class="summary-sig"><a name="muted_posts"></a><span class="summary-sig-name">muted_posts</span>(<span class="summary-sig-arg">self</span>)</span><br />
-      Returns a collection of posts that the current user has muted.</td>
-          <td align="right" valign="top">
-            <span class="codelink"><a href="buzz-pysrc.html#Client.muted_posts">source&nbsp;code</a></span>
-            
-          </td>
-        </tr>
-      </table>
-      
-    </td>
-  </tr>
-<tr>
-    <td width="15%" align="right" valign="top" class="summary">
-      <span class="summary-type">&nbsp;</span>
-    </td><td class="summary">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0">
-        <tr>
           <td><span class="summary-sig"><a name="mute_post"></a><span class="summary-sig-name">mute_post</span>(<span class="summary-sig-arg">self</span>,
-        <span class="summary-sig-arg">post_id</span>,
-        <span class="summary-sig-arg">actor_id</span>=<span class="summary-sig-default"><code class="variable-quote">'</code><code class="variable-string">0</code><code class="variable-quote">'</code></span>)</span><br />
+        <span class="summary-sig-arg">post_id</span>)</span><br />
       Mutes a post.</td>
           <td align="right" valign="top">
             <span class="codelink"><a href="buzz-pysrc.html#Client.mute_post">source&nbsp;code</a></span>
@@ -646,8 +669,7 @@
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <td><span class="summary-sig"><a name="unmute_post"></a><span class="summary-sig-name">unmute_post</span>(<span class="summary-sig-arg">self</span>,
-        <span class="summary-sig-arg">post_id</span>,
-        <span class="summary-sig-arg">actor_id</span>=<span class="summary-sig-default"><code class="variable-quote">'</code><code class="variable-string">0</code><code class="variable-quote">'</code></span>)</span><br />
+        <span class="summary-sig-arg">post_id</span>)</span><br />
       Unmutes a post.</td>
           <td align="right" valign="top">
             <span class="codelink"><a href="buzz-pysrc.html#Client.unmute_post">source&nbsp;code</a></span>
@@ -726,6 +748,88 @@
   </td>
 </tr>
 </table>
+<a name="use_anonymous_oauth_consumer"></a>
+<div>
+<table class="details" border="1" cellpadding="3"
+       cellspacing="0" width="100%" bgcolor="white">
+<tr><td>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr valign="top"><td>
+  <h3 class="epydoc"><span class="sig"><span class="sig-name">use_anonymous_oauth_consumer</span>(<span class="sig-arg">self</span>,
+        <span class="sig-arg">oauth_display_name</span>=<span class="sig-default">None</span>)</span>
+  </h3>
+  </td><td align="right" valign="top"
+    ><span class="codelink"><a href="buzz-pysrc.html#Client.use_anonymous_oauth_consumer">source&nbsp;code</a></span>&nbsp;
+    </td>
+  </tr></table>
+  
+  <p>This method sets the consumer key and secret to 'anonymous'.  It can 
+  also optionally set the <code>xoauth_displayname</code> parameter.  This 
+  method is primarily intended for use with installed applications.</p>
+  <dl class="fields">
+    <dt>Parameters:</dt>
+    <dd><ul class="nomargin-top">
+        <li><strong class="pname"><code>oauth_display_name</code></strong> (string) - The display name for the application</li>
+    </ul></dd>
+  </dl>
+</td></tr></table>
+</div>
+<a name="build_oauth_consumer"></a>
+<div>
+<table class="details" border="1" cellpadding="3"
+       cellspacing="0" width="100%" bgcolor="white">
+<tr><td>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr valign="top"><td>
+  <h3 class="epydoc"><span class="sig"><span class="sig-name">build_oauth_consumer</span>(<span class="sig-arg">self</span>,
+        <span class="sig-arg">key</span>,
+        <span class="sig-arg">secret</span>)</span>
+  </h3>
+  </td><td align="right" valign="top"
+    ><span class="codelink"><a href="buzz-pysrc.html#Client.build_oauth_consumer">source&nbsp;code</a></span>&nbsp;
+    </td>
+  </tr></table>
+  
+  <p>This method sets the consumer key and secret.  If you do not already 
+  have them, these can be obtained by <a 
+  href="http://code.google.com/apis/accounts/docs/RegistrationForWebAppsAuto.html"
+  target="_top">registering your web application</a>.</p>
+  <dl class="fields">
+    <dt>Parameters:</dt>
+    <dd><ul class="nomargin-top">
+        <li><strong class="pname"><code>key</code></strong> (string) - Your consumer key.  This will be your hostname.</li>
+        <li><strong class="pname"><code>secret</code></strong> (string) - Your consumer secret.  This is issued to you by Google.</li>
+    </ul></dd>
+  </dl>
+</td></tr></table>
+</div>
+<a name="build_oauth_request_token"></a>
+<div>
+<table class="details" border="1" cellpadding="3"
+       cellspacing="0" width="100%" bgcolor="white">
+<tr><td>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr valign="top"><td>
+  <h3 class="epydoc"><span class="sig"><span class="sig-name">build_oauth_request_token</span>(<span class="sig-arg">self</span>,
+        <span class="sig-arg">key</span>,
+        <span class="sig-arg">secret</span>)</span>
+  </h3>
+  </td><td align="right" valign="top"
+    ><span class="codelink"><a href="buzz-pysrc.html#Client.build_oauth_request_token">source&nbsp;code</a></span>&nbsp;
+    </td>
+  </tr></table>
+  
+  <p>This method sets the request token key and secret.  This allows you to
+  load a request token into the client from persistent storage.</p>
+  <dl class="fields">
+    <dt>Parameters:</dt>
+    <dd><ul class="nomargin-top">
+        <li><strong class="pname"><code>key</code></strong> (string) - The request token key.</li>
+        <li><strong class="pname"><code>secret</code></strong> (string) - The request token secret.</li>
+    </ul></dd>
+  </dl>
+</td></tr></table>
+</div>
 <a name="oauth_token_info"></a>
 <div>
 <table class="details" border="1" cellpadding="3"
@@ -820,7 +924,7 @@
 <table border="0" cellpadding="0" cellspacing="0" width="100%%">
   <tr>
     <td align="left" class="footer">
-    Generated by Epydoc 3.0.1 on Fri May 28 22:42:36 2010
+    Generated by Epydoc 3.0.1 on Tue Jun 15 16:19:19 2010
     </td>
     <td align="right" class="footer">
       <a target="mainFrame" href="http://epydoc.sourceforge.net"

@@ -3,6 +3,7 @@ buzz.READONLY_SCOPE	buzz-module.html#READONLY_SCOPE
 buzz._parse_geocode	buzz-module.html#_parse_geocode
 buzz.API_PREFIX	buzz-module.html#API_PREFIX
 buzz.FULL_ACCESS_SCOPE	buzz-module.html#FULL_ACCESS_SCOPE
+buzz.__package__	buzz-module.html#__package__
 buzz.OAUTH_AUTHORIZATION_URI	buzz-module.html#OAUTH_AUTHORIZATION_URI
 buzz._prune_json_envelope	buzz-module.html#_prune_json_envelope
 buzz.OAUTH_ACCESS_TOKEN_URI	buzz-module.html#OAUTH_ACCESS_TOKEN_URI
@@ -16,7 +17,7 @@ buzz.Client.likers	buzz.Client-class.html#likers
 buzz.Client.create_comment	buzz.Client-class.html#create_comment
 buzz.Client.unfollow	buzz.Client-class.html#unfollow
 buzz.Client.follow	buzz.Client-class.html#follow
-buzz.Client.use_anonymous_oauth_consumer	buzz.Client-class.html#use_anonymous_oauth_consumer
+buzz.Client.post	buzz.Client-class.html#post
 buzz.Client.__init__	buzz.Client-class.html#__init__
 buzz.Client.build_oauth_authorization_url	buzz.Client-class.html#build_oauth_authorization_url
 buzz.Client.person	buzz.Client-class.html#person
@@ -30,8 +31,7 @@ buzz.Client.unlike_post	buzz.Client-class.html#unlike_post
 buzz.Client.update_comment	buzz.Client-class.html#update_comment
 buzz.Client.oauth_http_connection	buzz.Client-class.html#oauth_http_connection
 buzz.Client.build_oauth_request	buzz.Client-class.html#build_oauth_request
-buzz.Client.liked_posts	buzz.Client-class.html#liked_posts
-buzz.Client.post	buzz.Client-class.html#post
+buzz.Client.use_anonymous_oauth_consumer	buzz.Client-class.html#use_anonymous_oauth_consumer
 buzz.Client.fetch_oauth_access_token	buzz.Client-class.html#fetch_oauth_access_token
 buzz.Client.unmute_post	buzz.Client-class.html#unmute_post
 buzz.Client.search	buzz.Client-class.html#search
@@ -47,7 +47,6 @@ buzz.Client.build_oauth_access_token	buzz.Client-class.html#build_oauth_access_t
 buzz.Client.following	buzz.Client-class.html#following
 buzz.Client.build_oauth_request_token	buzz.Client-class.html#build_oauth_request_token
 buzz.Client.create_post	buzz.Client-class.html#create_post
-buzz.Client.muted_posts	buzz.Client-class.html#muted_posts
 buzz.Comment	buzz.Comment-class.html
 buzz.Comment.post	buzz.Comment-class.html#post
 buzz.Comment.__repr__	buzz.Comment-class.html#__repr__

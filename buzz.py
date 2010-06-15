@@ -110,6 +110,49 @@ def _parse_geocode(geocode):
   return (lat, lon)
 
 class Client:
+  """
+  The L{Client} object is the primary method of making calls against the Buzz
+  API.  It can be used with or without authentication.  It attempts to reuse
+  HTTP connections whenever possible.  Currently, authentication is done via
+  OAuth.
+  
+  Examples
+  ========
+  - Authentication
+    - Getting the request token::
+      import buzz
+      client = buzz.Client()
+      client.build_oauth_consumer('your-app.appspot.com', 'consumer_secret')
+      client.oauth_scopes.append(buzz.FULL_ACCESS_SCOPE)
+      request_token = \\
+        client.fetch_oauth_request_token('http://example.com/callback/')
+      # Persist the request_token
+      authorization_url = client.build_oauth_authorization_url()
+      self.redirect(authorization_url)
+    - Upgrading to an access token::
+      import buzz
+      client = buzz.Client()
+      client.build_oauth_consumer('your-app.appspot.com', 'consumer_secret')
+      client.oauth_scopes.append(buzz.FULL_ACCESS_SCOPE)
+      # Retrieve the persisted request token
+      client.build_oauth_request_token(
+        request_token.key, request_token.secret
+      )
+      verifier = self.request.get('oauth_verifier')
+      access_token = \\
+        client.fetch_oauth_access_token(verifier)
+      # Persist the access_token
+    - Reusing an access token::
+      import buzz
+      client = buzz.Client()
+      client.build_oauth_consumer('your-app.appspot.com', 'consumer_secret')
+      client.oauth_scopes.append(buzz.FULL_ACCESS_SCOPE)
+      # Retrieve the persisted access token
+      client.build_oauth_access_token(
+        access_token.key, access_token.secret
+      )
+    
+  """
   def __init__(self):
     # Make sure we're always getting the right HTTP connection, even if
     # API_PREFIX changes
@@ -136,6 +179,7 @@ class Client:
     self.oauth_consumer = None
     self.oauth_request_token = None
     self.oauth_access_token = None
+    self.oauth_display_name = None
     self._oauth_token_authorized = False
     self._oauth_signature_method_hmac_sha1 = \
       oauth.OAuthSignatureMethod_HMAC_SHA1()
@@ -153,13 +197,43 @@ class Client:
         self._http_connection = httplib.HTTPConnection(self._host, self._port)
     return self._http_connection
 
-  def use_anonymous_oauth_consumer(self):
+  def use_anonymous_oauth_consumer(self, oauth_display_name=None):
+    """
+    This method sets the consumer key and secret to 'anonymous'.  It can also
+    optionally set the C{xoauth_displayname} parameter.  This method is
+    primarily intended for use with installed applications.
+    
+    @type oauth_display_name: string
+    @param oauth_display_name: The display name for the application
+    """
     self.oauth_consumer = oauth.OAuthConsumer('anonymous', 'anonymous')
+    if oauth_display_name:
+      self.oauth_display_name = oauth_display_name
 
   def build_oauth_consumer(self, key, secret):
+    """
+    This method sets the consumer key and secret.  If you do not already have
+    them, these can be obtained by U{registering your web application <
+    http://code.google.com/apis/accounts/docs/RegistrationForWebAppsAuto.html
+    >}.
+
+    @type key: string
+    @param key: Your consumer key.  This will be your hostname.
+    @type secret: string
+    @param secret: Your consumer secret.  This is issued to you by Google.
+    """
     self.oauth_consumer = oauth.OAuthConsumer(key, secret)
 
   def build_oauth_request_token(self, key, secret):
+    """
+    This method sets the request token key and secret.  This allows you to
+    load a request token into the client from persistent storage.
+
+    @type key: string
+    @param key: The request token key.
+    @type secret: string
+    @param secret: The request token secret.
+    """
     self.oauth_request_token = oauth.OAuthToken(key, secret)
 
   def build_oauth_access_token(self, key, secret):
@@ -219,6 +293,8 @@ class Client:
         'oauth_callback': callback_uri,
         'scope': ' '.join(self.oauth_scopes)
       }
+      if self.oauth_display_name:
+        parameters['xoauth_displayname'] = self.oauth_display_name
       oauth_request = oauth.OAuthRequest(
         'POST',
         OAUTH_REQUEST_TOKEN_URI,
