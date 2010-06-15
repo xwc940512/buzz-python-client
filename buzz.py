@@ -12,6 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Common Tasks
+============
+- Authentication
+  - Getting the request token::
+    import buzz
+    client = buzz.Client()
+    client.build_oauth_consumer('your-app.appspot.com', 'consumer_secret')
+    client.oauth_scopes.append(buzz.FULL_ACCESS_SCOPE)
+    request_token = \\
+      client.fetch_oauth_request_token('http://example.com/callback/')
+    # Persist the request_token
+    authorization_url = client.build_oauth_authorization_url()
+    self.redirect(authorization_url)
+  - Upgrading to an access token::
+    import buzz
+    client = buzz.Client()
+    client.build_oauth_consumer('your-app.appspot.com', 'consumer_secret')
+    client.oauth_scopes.append(buzz.FULL_ACCESS_SCOPE)
+    # Retrieve the persisted request token
+    client.build_oauth_request_token(
+      request_token.key, request_token.secret
+    )
+    verifier = self.request.get('oauth_verifier')
+    access_token = \\
+      client.fetch_oauth_access_token(verifier)
+    # Persist the access_token
+  - Reusing an access token::
+    import buzz
+    client = buzz.Client()
+    client.build_oauth_consumer('your-app.appspot.com', 'consumer_secret')
+    client.oauth_scopes.append(buzz.FULL_ACCESS_SCOPE)
+    # Retrieve the persisted access token
+    client.build_oauth_access_token(
+      access_token.key, access_token.secret
+    )
+"""
+
 import os
 import sys
 import urlparse
@@ -114,44 +152,7 @@ class Client:
   The L{Client} object is the primary method of making calls against the Buzz
   API.  It can be used with or without authentication.  It attempts to reuse
   HTTP connections whenever possible.  Currently, authentication is done via
-  OAuth.
-  
-  Examples
-  ========
-  - Authentication
-    - Getting the request token::
-      import buzz
-      client = buzz.Client()
-      client.build_oauth_consumer('your-app.appspot.com', 'consumer_secret')
-      client.oauth_scopes.append(buzz.FULL_ACCESS_SCOPE)
-      request_token = \\
-        client.fetch_oauth_request_token('http://example.com/callback/')
-      # Persist the request_token
-      authorization_url = client.build_oauth_authorization_url()
-      self.redirect(authorization_url)
-    - Upgrading to an access token::
-      import buzz
-      client = buzz.Client()
-      client.build_oauth_consumer('your-app.appspot.com', 'consumer_secret')
-      client.oauth_scopes.append(buzz.FULL_ACCESS_SCOPE)
-      # Retrieve the persisted request token
-      client.build_oauth_request_token(
-        request_token.key, request_token.secret
-      )
-      verifier = self.request.get('oauth_verifier')
-      access_token = \\
-        client.fetch_oauth_access_token(verifier)
-      # Persist the access_token
-    - Reusing an access token::
-      import buzz
-      client = buzz.Client()
-      client.build_oauth_consumer('your-app.appspot.com', 'consumer_secret')
-      client.oauth_scopes.append(buzz.FULL_ACCESS_SCOPE)
-      # Retrieve the persisted access token
-      client.build_oauth_access_token(
-        access_token.key, access_token.secret
-      )
-    
+  OAuth.  
   """
   def __init__(self):
     # Make sure we're always getting the right HTTP connection, even if
