@@ -48,6 +48,29 @@ Common Tasks
     client.build_oauth_access_token(
       access_token.key, access_token.secret
     )
+- Creating a post
+  - Simple::
+    post = buzz.Post(
+      content="This is some example content."
+    )
+    client.create_post(post)
+  - Post with a link::
+    attachment = buzz.Attachment(
+      type='article',
+      title='Google Buzz',
+      uri='http://www.google.com/buzz'
+    )
+    post = buzz.Post(
+      content="Google Buzz is really cool.",
+      attachments=[attachment]
+    )
+    client.create_post(post)
+  - Post with a geocode::
+    post = buzz.Post(
+      content="Google Buzz is really cool.",
+      geocode=('37.421776', '-122.084155')
+    )
+    client.create_post(post)
 """
 
 import os
