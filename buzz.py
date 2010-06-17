@@ -86,7 +86,10 @@ import logging
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'third_party'))
 
-import oauth
+try:
+  import oauth.oauth as oauth
+except (ImportError):
+  import oauth
 
 try:
   # This is where simplejson lives on App Engine

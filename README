@@ -1,4 +1,4 @@
-This is a Python for the Google Buzz API.
+This is a Python client for the Google Buzz API.
 
 The directory structure is organized as follows:
 buzz.py - the Python module containing the Buzz API client
