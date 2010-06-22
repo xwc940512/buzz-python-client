@@ -113,7 +113,9 @@ class RetrieveError(Exception):
   This exception gets raised if there was some kind of HTTP or network error
   while accessing the API.
   """
-  def __init__(self, uri, message, json=None):
+  def __init__(self, message=None, uri=None, json=None, exception=None):
+    if not message and exception and hasattr(exception, 'message'):
+      message = exception.message
     self._uri = uri
     self._message = message
     self._json = json
@@ -127,7 +129,10 @@ class JSONParseError(Exception):
   what the client was expecting.  If this exception is raised, it's typically
   a bug.
   """
-  def __init__(self, json, uri=None, exception=None):
+  def __init__(self, message=None, json=None, uri=None, exception=None):
+    if not message and exception and hasattr(exception, 'message'):
+      message = exception.message
+    self._message = message
     self._uri = uri
     self._json = json
     self._exception = exception
@@ -464,18 +469,23 @@ class Client:
           )
           response = http_connection.getresponse()
     except Exception, e:
-      if hasattr(e, '_json'):
-        # If the raw JSON of the error is available, we don't want to lose it.
-        raise RetrieveError(
-          uri=http_uri,
-          message=str(e),
-          json=e._json
-        )
+      if e.__class__.__name__ == 'ApplicationError' or \
+          e.__class__.__name__ == 'DownloadError':
+        if "5" in e.message:
+          message = "Request timed out"
+        else:
+          message = "Request failed"
       else:
-        raise RetrieveError(
-          uri=http_uri,
-          message=str(e)
-        )
+        message = str(e)
+      json = None
+      # If the raw JSON of the error is available, we don't want to lose it.
+      if hasattr(e, '_json'):
+        json = e._json
+      raise RetrieveError(
+        uri=http_uri,
+        message=message,
+        json=json
+      )
     return response
 
   # People APIs
