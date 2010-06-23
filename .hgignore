@@ -7,3 +7,4 @@ syntax: glob
 cover
 incantation.py
 oauth.yaml
+api.yaml
