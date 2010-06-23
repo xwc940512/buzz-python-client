@@ -97,7 +97,18 @@ try:
 except (ImportError):
   import simplejson
 
-API_PREFIX = "https://www.googleapis.com/buzz/v1"
+if os.path.exists('api.yaml'):
+  # If necessary, allow for the API prefix to be set to something else
+  try:
+    import yaml
+  except (ImportError):
+    sys.stderr.write('Please install PyYAML.\n')
+    exit(1)
+  API_CONFIG = yaml.load(open('api.yaml').read())
+  API_PREFIX = API_CONFIG['api_prefix']
+else:
+  API_PREFIX = "https://www.googleapis.com/buzz/v1"
+
 READONLY_SCOPE = 'https://www.googleapis.com/auth/buzz.readonly'
 FULL_ACCESS_SCOPE = 'https://www.googleapis.com/auth/buzz'
 
