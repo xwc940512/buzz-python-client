@@ -416,10 +416,12 @@ class Client:
       else:
         # Deprecated in 2.6
         qs_parser = cgi.parse_qs
+      # Buzz gives non-strict conforming next uris, like:
+      # https://www.googleapis.com/buzz/v1/activities/search?q&lon=1123&lat=456&max-results=2&c=2
       parameters = qs_parser(
         query,
         keep_blank_values=True,
-        strict_parsing=True
+        strict_parsing=False
       )
       for k, v in parameters.iteritems():
         parameters[k] = v[0]
@@ -556,12 +558,15 @@ class Client:
 
   # Post APIs
 
-  def search(self, query=None, geocode=None):
+  def search(self, query=None, latitude=None, longitude=None, radius=None):
     api_endpoint = API_PREFIX + "/activities/search?alt=json"
     if query:
       api_endpoint += "&q=" + urllib.quote_plus(query)
-    if geocode:
-      api_endpoint += "&geocode=" + urllib.quote(",".join(geocode))
+    if radius is not None:
+      api_endpoint += "&radius=" + urllib.quote(radius)
+    if (latitude is not None) and (longitude is not None):
+      api_endpoint += "&lat=" + urllib.quote(latitude)
+      api_endpoint += "&lon=" + urllib.quote(longitude)
     return Result(self, 'GET', api_endpoint, result_type=Post)
 
   def posts(self, type_id='@self', user_id='@me'):
