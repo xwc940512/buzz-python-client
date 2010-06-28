@@ -562,11 +562,11 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/search?alt=json"
     if query:
       api_endpoint += "&q=" + urllib.quote_plus(query)
-    if radius is not None:
-      api_endpoint += "&radius=" + urllib.quote(radius)
     if (latitude is not None) and (longitude is not None):
       api_endpoint += "&lat=" + urllib.quote(latitude)
       api_endpoint += "&lon=" + urllib.quote(longitude)
+    if radius is not None:
+      api_endpoint += "&radius=" + urllib.quote(radius)
     return Result(self, 'GET', api_endpoint, result_type=Post)
 
   def posts(self, type_id='@self', user_id='@me'):
