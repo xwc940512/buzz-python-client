@@ -556,19 +556,23 @@ class Client:
 
   # Post APIs
 
-  def search(self, query=None, geocode=None):
+  def search(self, query=None, geocode=None, max_results=20):
     api_endpoint = API_PREFIX + "/activities/search?alt=json"
     if query:
       api_endpoint += "&q=" + urllib.quote_plus(query)
     if geocode:
       api_endpoint += "&geocode=" + urllib.quote(",".join(geocode))
+    if max_results:
+      api_endpoint += "&max-results=" + str(max_results)
     return Result(self, 'GET', api_endpoint, result_type=Post)
 
-  def posts(self, type_id='@self', user_id='@me'):
+  def posts(self, type_id='@self', user_id='@me', max_results=20):
     if isinstance(user_id, Person):
       user_id = user_id.id
     api_endpoint = API_PREFIX + "/activities/" + user_id + "/" + type_id
     api_endpoint += "?alt=json"
+    if max_results:
+      api_endpoint += "&max-results=" + str(max_results)
     return Result(self, 'GET', api_endpoint, result_type=Post)
 
   def post(self, post_id, actor_id='0'):
@@ -606,7 +610,7 @@ class Client:
     api_endpoint += "?alt=json"
     return Result(self, 'DELETE', api_endpoint, result_type=None).data
 
-  def comments(self, post_id, actor_id='0'):
+  def comments(self, post_id, actor_id='0', max_results=20):
     if isinstance(actor_id, Person):
       actor_id = actor_id.id
     if isinstance(post_id, Post):
@@ -614,6 +618,8 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@self/" + post_id + "/@comments"
     api_endpoint += "?alt=json"
+    if max_results:
+      api_endpoint += "&max-results=" + str(max_results)
     return Result(self, 'GET', api_endpoint, result_type=Comment)
 
   def create_comment(self, comment):
@@ -652,7 +658,7 @@ class Client:
     api_endpoint += "?alt=json"
     return Result(self, 'DELETE', api_endpoint, result_type=None).data
 
-  def likers(self, post_id, actor_id='0'):
+  def likers(self, post_id, actor_id='0', max_results=20):
     if isinstance(actor_id, Person):
       actor_id = actor_id.id
     if isinstance(post_id, Post):
@@ -660,6 +666,8 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@self/" + post_id + "/@likers"
     api_endpoint += "?alt=json"
+    if max_results:
+      api_endpoint += "&max-results=" + str(max_results)
     return Result(self, 'GET', api_endpoint, result_type=Person)
 
   # Likes
