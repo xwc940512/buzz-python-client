@@ -4,6 +4,7 @@ syntax: glob
 *,cover
 .DS_Store
 .coverage
+.*.swp
 cover
 incantation.py
 oauth.yaml

@@ -1,0 +1,6 @@
+To run tests:
+- From the buzz root source directory
+$ BUZZ_TEST_CONIFG=/path/to/your/config ./tests/test_buzz.py
+
+
+BUZZ_TEST_CONFIG should contain all keys as the example examples/test_config.yaml
