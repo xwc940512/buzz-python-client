@@ -4,7 +4,8 @@ syntax: glob
 *,cover
 .DS_Store
 .coverage
+.*.swp
 cover
 incantation.py
-oauth.yaml
-api.yaml
+places_api.py
+buzz_python_client.yaml
