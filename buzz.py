@@ -125,8 +125,8 @@ class RetrieveError(Exception):
   while accessing the API.
   """
   def __init__(self, message=None, uri=None, json=None, exception=None):
-    if not message and exception and hasattr(exception, 'message'):
-      message = exception.message
+    if not message and exception:
+      message = str(exception)
     self._uri = uri
     self._message = message
     self._json = json
@@ -141,8 +141,8 @@ class JSONParseError(Exception):
   a bug.
   """
   def __init__(self, message=None, json=None, uri=None, exception=None):
-    if not message and exception and hasattr(exception, 'message'):
-      message = exception.message
+    if not message and exception:
+      message = str(exception)
     self._message = message
     self._uri = uri
     self._json = json
@@ -1148,7 +1148,8 @@ class Result:
     if not self._data:
       if not self._response:
         self.reload()
-      if self._response.status != 200:
+      if not (self._response.status >= 200 and self._response.status < 300):
+        # Response was not a 2xx class status
         self._parse_error(self._json)
       if self.result_type == Post and self.singular:
         self._data = self._parse_post(self._json)
@@ -1174,7 +1175,10 @@ class Result:
     )
     self._body = self._response.read()
     try:
-      self._json = simplejson.loads(self._body)
+      if self._body == '':
+        self._json = None
+      else:
+        self._json = simplejson.loads(self._body)
     except Exception, e:
       raise JSONParseError(
         json=(self._json or self._body),
@@ -1324,11 +1328,18 @@ class Result:
 
   def _parse_error(self, json):
     """Helper method for converting an error response to an exception."""
-    raise RetrieveError(
-      uri=self._http_uri,
-      message=json['error'].get('message'),
-      json=json
-    )
+    if json:
+      raise RetrieveError(
+        uri=self._http_uri,
+        message=json['error'].get('message'),
+        json=json
+      )
+    else:
+      raise RetrieveError(
+        uri=self._http_uri,
+        message='Unknown error'
+      )
+    
 
 class ResultIterator:
   def __init__(self, result):
