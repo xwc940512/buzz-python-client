@@ -97,16 +97,18 @@ try:
 except (ImportError):
   import simplejson
 
-if os.path.exists('api.yaml'):
-  # If necessary, allow for the API prefix to be set to something else
+CONFIG_PATH = os.environ.get('BUZZ_CONFIG_PATH', 'buzz_python_client.yaml')
+if os.path.exists(CONFIG_PATH):
+  # Allow optional configuration file to be loaded
   try:
     import yaml
   except (ImportError):
     sys.stderr.write('Please install PyYAML.\n')
     exit(1)
-  API_CONFIG = yaml.load(open('api.yaml').read())
-  API_PREFIX = API_CONFIG['api_prefix']
+  CLIENT_CONFIG = yaml.load(open(CONFIG_PATH).read())
+  API_PREFIX = CLIENT_CONFIG['api_prefix']
 else:
+  CLIENT_CONFIG = {}
   API_PREFIX = "https://www.googleapis.com/buzz/v1"
 
 READONLY_SCOPE = 'https://www.googleapis.com/auth/buzz.readonly'
@@ -416,10 +418,12 @@ class Client:
       else:
         # Deprecated in 2.6
         qs_parser = cgi.parse_qs
+      # Buzz gives non-strict conforming next uris, like:
+      # https://www.googleapis.com/buzz/v1/activities/search?q&lon=1123&lat=456&max-results=2&c=2
       parameters = qs_parser(
         query,
         keep_blank_values=True,
-        strict_parsing=True
+        strict_parsing=False
       )
       for k, v in parameters.iteritems():
         parameters[k] = v[0]
@@ -556,20 +560,21 @@ class Client:
 
   # Post APIs
 
-  def search(self, query=None, geocode=None, max_results=20):
+  def search(self, query=None, latitude=None, longitude=None, radius=None):
     api_endpoint = API_PREFIX + "/activities/search?alt=json"
     if query:
       api_endpoint += "&q=" + urllib.quote_plus(query)
-    if geocode:
-      api_endpoint += "&geocode=" + urllib.quote(",".join(geocode))
-    if max_results:
-      api_endpoint += "&max-results=" + str(max_results)
+    if (latitude is not None) and (longitude is not None):
+      api_endpoint += "&lat=" + urllib.quote(latitude)
+      api_endpoint += "&lon=" + urllib.quote(longitude)
+    if radius is not None:
+      api_endpoint += "&radius=" + urllib.quote(radius)
     return Result(self, 'GET', api_endpoint, result_type=Post)
 
   def posts(self, type_id='@self', user_id='@me', max_results=20):
     if isinstance(user_id, Person):
       user_id = user_id.id
-    api_endpoint = API_PREFIX + "/activities/" + user_id + "/" + type_id
+    api_endpoint = API_PREFIX + "/activities/" + str(user_id) + "/" + type_id
     api_endpoint += "?alt=json"
     if max_results:
       api_endpoint += "&max-results=" + str(max_results)
@@ -580,7 +585,7 @@ class Client:
       actor_id = actor_id.id
     if isinstance(post_id, Post):
       post_id = post_id.id
-    api_endpoint = API_PREFIX + "/activities/" + actor_id + \
+    api_endpoint = API_PREFIX + "/activities/" + str(actor_id) + \
       "/@self/" + post_id
     api_endpoint += "?alt=json"
     return Result(self, 'GET', api_endpoint, result_type=Post, singular=True)
