@@ -131,7 +131,7 @@ Uris:           %s
     print '\n'.join([
 """
 Post ID:        %s
-Ttile:          %s
+Title:          %s
 Actor:          %s
 Content         %s
 URI:            %s
