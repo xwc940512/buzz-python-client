@@ -106,7 +106,8 @@ if os.path.exists(CONFIG_PATH):
     sys.stderr.write('Please install PyYAML.\n')
     exit(1)
   CLIENT_CONFIG = yaml.load(open(CONFIG_PATH).read())
-  API_PREFIX = CLIENT_CONFIG['api_prefix']
+  API_PREFIX = CLIENT_CONFIG.get('api_prefix') or \
+    "https://www.googleapis.com/buzz/v1"
 else:
   CLIENT_CONFIG = {}
   API_PREFIX = "https://www.googleapis.com/buzz/v1"
@@ -568,7 +569,7 @@ class Client:
       api_endpoint += "&lat=" + urllib.quote(latitude)
       api_endpoint += "&lon=" + urllib.quote(longitude)
     if radius is not None:
-      api_endpoint += "&radius=" + urllib.quote(radius)
+      api_endpoint += "&radius=" + urllib.quote(str(radius))
     return Result(self, 'GET', api_endpoint, result_type=Post)
 
   def posts(self, type_id='@self', user_id='@me', max_results=20):
