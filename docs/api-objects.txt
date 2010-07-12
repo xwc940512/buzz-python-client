@@ -1,13 +1,14 @@
 buzz	buzz-module.html
 buzz.READONLY_SCOPE	buzz-module.html#READONLY_SCOPE
 buzz._parse_geocode	buzz-module.html#_parse_geocode
-buzz.API_PREFIX	buzz-module.html#API_PREFIX
+buzz.CONFIG_PATH	buzz-module.html#CONFIG_PATH
 buzz.FULL_ACCESS_SCOPE	buzz-module.html#FULL_ACCESS_SCOPE
-buzz.__package__	buzz-module.html#__package__
+buzz.CLIENT_CONFIG	buzz-module.html#CLIENT_CONFIG
+buzz.OAUTH_REQUEST_TOKEN_URI	buzz-module.html#OAUTH_REQUEST_TOKEN_URI
 buzz.OAUTH_AUTHORIZATION_URI	buzz-module.html#OAUTH_AUTHORIZATION_URI
 buzz._prune_json_envelope	buzz-module.html#_prune_json_envelope
 buzz.OAUTH_ACCESS_TOKEN_URI	buzz-module.html#OAUTH_ACCESS_TOKEN_URI
-buzz.OAUTH_REQUEST_TOKEN_URI	buzz-module.html#OAUTH_REQUEST_TOKEN_URI
+buzz.API_PREFIX	buzz-module.html#API_PREFIX
 buzz.Attachment	buzz.Attachment-class.html
 buzz.Attachment.__repr__	buzz.Attachment-class.html#__repr__
 buzz.Attachment.__init__	buzz.Attachment-class.html#__init__
