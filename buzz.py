@@ -664,6 +664,12 @@ class Client:
     api_endpoint += "?alt=json"
     return Result(self, 'DELETE', api_endpoint, result_type=None).data
 
+  def commented_posts(self, user_id='@me'):
+    """Returns a collection of posts that the user has commented on."""
+    return self.posts(type_id='@comments', user_id=user_id)
+
+  # Likes
+
   def likers(self, post_id, actor_id='0', max_results=20):
     if isinstance(actor_id, Person):
       actor_id = actor_id.id
@@ -676,10 +682,9 @@ class Client:
       api_endpoint += "&max-results=" + str(max_results)
     return Result(self, 'GET', api_endpoint, result_type=Person)
 
-  # Likes
-  # def liked_posts(self, user_id='@me'):
-  #   """Returns a collection of posts that a user has liked."""
-  #   return self.posts(type_id='@liked', user_id=user_id)
+  def liked_posts(self, user_id='@me'):
+    """Returns a collection of posts that a user has liked."""
+    return self.posts(type_id='@liked', user_id=user_id)
 
   def like_post(self, post_id):
     """
@@ -706,9 +711,6 @@ class Client:
     ).data
 
   # Mutes
-  # def muted_posts(self):
-  #   """Returns a collection of posts that the current user has muted."""
-  #   return self.posts(type_id='@muted', user_id='@me')
 
   def mute_post(self, post_id):
     """
@@ -733,6 +735,29 @@ class Client:
     return Result(
       self, 'DELETE', api_endpoint, result_type=None, singular=True
     ).data
+
+  def share_count(self, uri):
+    """
+    Returns information about the number of times a URI has been shared.
+    """
+    api_endpoint = API_PREFIX + "/activities/count?alt=json"
+    api_endpoint += "&url=" + urllib.quote(uri)
+    result = Result(
+      self, 'GET', api_endpoint, result_type=None, singular=True
+    )
+    result.data
+    json = result._json
+    try:
+      if json.get('error'):
+        self.parse_error(json)
+      json = _prune_json_envelope(json)
+      return int(json['counts'][uri][0]['count'])
+    except KeyError, e:
+      raise JSONParseError(
+        uri=api_endpoint,
+        json=json,
+        exception=e
+      )
 
   # OAuth debugging
 
