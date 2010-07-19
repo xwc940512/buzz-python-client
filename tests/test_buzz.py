@@ -59,11 +59,14 @@ def clear_posts():
   posts = CLIENT.posts()
   for post in posts:
     CLIENT.delete_post(post)
+  post = CLIENT.post(post_id=BUZZ_POST_ID).data
+  post.unlike()
+  post.unmute()
 
 def create_post():
   post = buzz.Post(content="This is a test post.")
   CLIENT.create_post(post)
-  time.sleep(0.3)
+  time.sleep(0.5)
   return CLIENT.posts().data[0]
 
 # For the most part, these tests do not rely on any specific piece of data
@@ -176,7 +179,7 @@ def test_follow():
   person = CLIENT.person(BUZZ_TARGET_ID).data
   person.follow()
   # Give the API time to catch up
-  time.sleep(0.3)
+  time.sleep(1.5)
   followers = CLIENT.followers(BUZZ_TARGET_ID).data
   assert BUZZ_TESTING_ID in [follower.id for follower in followers], \
     "Should have been able to find the account in followers list."
@@ -191,7 +194,7 @@ def test_unfollow():
   person.follow()
   person.unfollow()
   # Give the API time to catch up
-  time.sleep(0.3)
+  time.sleep(1.5)
   followers = CLIENT.followers(BUZZ_TARGET_ID).data
   assert not BUZZ_TESTING_ID in [follower.id for follower in followers], \
     "Should not have been able to find the account in followers list."
@@ -309,7 +312,7 @@ def test_update_post():
   post = create_post()
   post.content = "This is updated content."
   CLIENT.update_post(post)
-  time.sleep(0.3)
+  time.sleep(0.5)
   post = CLIENT.posts().data[0]
   assert post.content == "This is updated content."
   assert isinstance(post, buzz.Post), \
@@ -319,7 +322,7 @@ def test_update_post():
 def test_delete_post():
   create_post()
   clear_posts()
-  time.sleep(0.3)
+  time.sleep(0.5)
   assert CLIENT.posts().data == []
 
 @dumpjson
@@ -339,7 +342,7 @@ def test_create_comment():
   post = create_post()
   comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
   CLIENT.create_comment(comment)
-  time.sleep(0.3)
+  time.sleep(0.5)
   comments = post.comments().data
   assert isinstance(comments, list), \
     "Could not obtain reference to the account's posts."
@@ -354,11 +357,11 @@ def test_update_comment():
   post = create_post()
   comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
   CLIENT.create_comment(comment)
-  time.sleep(0.3)
+  time.sleep(0.5)
   comment = post.comments().data[0]
   comment.content = "This is updated content."
   CLIENT.update_comment(comment)
-  time.sleep(0.3)
+  time.sleep(0.5)
   comment = post.comments().data[0]
   assert comment.content == "This is updated content."
 
@@ -366,29 +369,49 @@ def test_update_comment():
 def test_delete_comment():
   clear_posts()
   post = create_post()
-  time.sleep(0.3)
+  time.sleep(0.5)
   comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
   CLIENT.create_comment(comment)
-  time.sleep(0.3)
+  time.sleep(0.5)
   comments = post.comments().data
   comment = comments[0]
   assert comments != []
   CLIENT.delete_comment(comment)
-  time.sleep(0.3)
+  time.sleep(0.5)
   comments = post.comments().data
   assert comments == []
 
 @dumpjson
+def test_commented_posts():
+  clear_posts()
+  post = create_post()
+  comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
+  CLIENT.create_comment(comment)
+  assert len(CLIENT.commented_posts().data) > 0
+
+@dumpjson
 def test_like_post():
+  clear_posts()
   post = CLIENT.post(post_id=BUZZ_POST_ID).data
-  # We can only verify that this doesn't throw an error
   post.like()
+  time.sleep(0.5)
+  posts = CLIENT.liked_posts().data
+  assert len(posts) == 1
+  clear_posts()
 
 @dumpjson
 def test_unlike_post():
+  clear_posts()
   post = CLIENT.post(post_id=BUZZ_POST_ID).data
-  # We can only verify that this doesn't throw an error
+  post.like()
+  time.sleep(0.5)
+  posts = CLIENT.liked_posts().data
+  assert len(posts) == 1
   post.unlike()
+  time.sleep(0.5)
+  posts = CLIENT.liked_posts().data
+  assert len(posts) == 0
+  clear_posts()
 
 @dumpjson
 def test_post_likers():
@@ -397,22 +420,25 @@ def test_post_likers():
   assert isinstance(likers, list), \
     "Should have been able to get the list of likers."
 
-# def test_liked_posts():
-#   posts = CLIENT.liked_posts().data
-
+@dumpjson
 def test_mute_post():
+  clear_posts()
   post = CLIENT.post(post_id=BUZZ_POST_ID).data
-  # We can only verify that this doesn't throw an error
+  # Make sure it doesn't error out
   post.mute()
 
 @dumpjson
 def test_unmute_post():
+  clear_posts()
   post = CLIENT.post(post_id=BUZZ_POST_ID).data
-  # We can only verify that this doesn't throw an error
+  post.mute()
+  # Make sure it doesn't error out
   post.unmute()
 
-# def test_muted_posts():
-#   posts = CLIENT.muted_posts().data
+@dumpjson
+def test_share_count():
+  count = CLIENT.share_count('http://www.google.com/')
+  assert count > 0
 
 if __name__ == '__main__':
   if NOSE_ENABLED:
