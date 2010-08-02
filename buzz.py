@@ -122,6 +122,12 @@ OAUTH_ACCESS_TOKEN_URI = \
 OAUTH_AUTHORIZATION_URI = \
   'https://www.google.com/buzz/api/auth/OAuthAuthorizeToken'
 
+if CLIENT_CONFIG.has_key('debug') and CLIENT_CONFIG.get('debug'):
+    DEBUG = True
+    logging.basicConfig(level=logging.DEBUG)
+else:
+    DEBUG = False
+
 class RetrieveError(Exception):
   """
   This exception gets raised if there was some kind of HTTP or network error
@@ -1197,6 +1203,8 @@ class Result:
     return self._data
 
   def reload(self):
+    if DEBUG:
+      logging.info('URI to fetch is %s' % self._http_uri)
     self._data = None
     self._response = self.client.fetch_api_response(
       http_method=self._http_method,

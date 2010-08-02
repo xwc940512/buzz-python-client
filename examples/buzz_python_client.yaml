@@ -13,3 +13,6 @@ testing_account: "buzzapitesting"
 target_id: "107807692475771887386"
 target_account: "hikingfan"
 post_id: "tag:google.com,2010:buzz:z12wdlxi2pmnwj5df23bihy5mkqmuvbpa04"
+
+# Debug
+debug: true
