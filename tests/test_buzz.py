@@ -152,6 +152,32 @@ def test_followers_me():
     "Should have been able to get the list of followers."
 
 @dumpjson
+def test_followers_paginates():
+  client = buzz.Client()
+  result = client.followers('googlebuzz')
+  for count, person in enumerate(result):
+    if count > buzz.DEFAULT_PAGE_SIZE:
+      break
+  else:
+    # Poor man's fail() replacement
+    assert False, \
+    "Official Google Buzz account should have more than %s followers not %s" \
+    % (buzz.DEFAULT_PAGE_SIZE, follower_count)
+
+@dumpjson
+def test_following_paginates():
+  client = buzz.Client()
+  result = client.following('googlebuzz')
+  for count, person in enumerate(result):
+    if count > buzz.DEFAULT_PAGE_SIZE:
+      break
+  else:
+    # Poor man's fail() replacement
+    assert False, \
+    "Official Google Buzz account should be following more than %s people" \
+    " not %s" % (buzz.DEFAULT_PAGE_SIZE, following_count)
+
+@dumpjson
 def test_followers_other():
   client = buzz.Client()
   result = client.followers(BUZZ_TESTING_ID)
@@ -180,9 +206,9 @@ def test_follow():
   person.follow()
   # Give the API time to catch up
   time.sleep(1.5)
-  followers = CLIENT.followers(BUZZ_TARGET_ID).data
+  followers = list(CLIENT.followers(BUZZ_TARGET_ID))
   assert BUZZ_TESTING_ID in [follower.id for follower in followers], \
-    "Should have been able to find the account in followers list."
+    "Should have been able to find the account in followers list of %s items." % len(followers)
   following = CLIENT.following(BUZZ_TESTING_ID).data
   assert BUZZ_TARGET_ID in [followee.id for followee in following], \
     "Should have been able to find the target in following list."
@@ -312,7 +338,7 @@ def test_update_post():
   post = create_post()
   post.content = "This is updated content."
   CLIENT.update_post(post)
-  time.sleep(0.5)
+  time.sleep(1.5)
   post = CLIENT.posts().data[0]
   assert post.content == "This is updated content."
   assert isinstance(post, buzz.Post), \
@@ -342,7 +368,7 @@ def test_create_comment():
   post = create_post()
   comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
   CLIENT.create_comment(comment)
-  time.sleep(0.5)
+  time.sleep(1.5)
   comments = post.comments().data
   assert isinstance(comments, list), \
     "Could not obtain reference to the account's posts."
@@ -357,11 +383,11 @@ def test_update_comment():
   post = create_post()
   comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
   CLIENT.create_comment(comment)
-  time.sleep(0.5)
+  time.sleep(1.5)
   comment = post.comments().data[0]
   comment.content = "This is updated content."
   CLIENT.update_comment(comment)
-  time.sleep(0.5)
+  time.sleep(1.5)
   comment = post.comments().data[0]
   assert comment.content == "This is updated content."
 
@@ -369,15 +395,15 @@ def test_update_comment():
 def test_delete_comment():
   clear_posts()
   post = create_post()
-  time.sleep(0.5)
+  time.sleep(1.5)
   comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
   CLIENT.create_comment(comment)
-  time.sleep(0.5)
+  time.sleep(1.5)
   comments = post.comments().data
   comment = comments[0]
   assert comments != []
   CLIENT.delete_comment(comment)
-  time.sleep(0.5)
+  time.sleep(1.5)
   comments = post.comments().data
   assert comments == []
 

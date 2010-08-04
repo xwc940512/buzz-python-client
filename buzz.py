@@ -128,6 +128,8 @@ if CLIENT_CONFIG.has_key('debug') and CLIENT_CONFIG.get('debug'):
 else:
     DEBUG = False
 
+DEFAULT_PAGE_SIZE = 20
+
 class RetrieveError(Exception):
   """
   This exception gets raised if there was some kind of HTTP or network error
@@ -1176,6 +1178,7 @@ class Result:
     self._http_uri = http_uri
     self._http_headers = http_headers
     self._http_body = http_body
+    self.poco_count = 0
 
   def __iter__(self):
     return ResultIterator(self)
@@ -1246,6 +1249,24 @@ class Result:
         if not self._json:
           self.reload()
         semi_pruned_json = self._json.get('data') or self._json
+
+      # Portable Contacts feeds have different pagination rules
+      if semi_pruned_json.get('kind') == 'buzz#peopleFeed':
+        total_results = semi_pruned_json.get('totalResults')
+        if semi_pruned_json.get('startIndex') < total_results:
+          if 'c=' in self._http_uri:
+            old_param = '&c=%s' % self.poco_count
+            self.poco_count += DEFAULT_PAGE_SIZE
+            new_param = '&c=%s' % self.poco_count
+            self._next_uri = self._http_uri.replace(old_param, new_param)
+          else:
+            self._next_uri = self._http_uri + '&c=%s' % DEFAULT_PAGE_SIZE
+            self.poco_count = DEFAULT_PAGE_SIZE
+          if self.poco_count >= total_results:
+            # Finished processing PoCo
+            return None
+          return self._next_uri
+      else:
         links = semi_pruned_json.get('links')
         if not links:
           return None
