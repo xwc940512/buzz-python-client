@@ -684,7 +684,7 @@ class Client:
     if isinstance(post_id, Post):
       post_id = post_id.id
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
-      "/@self/" + post_id + "/@likers"
+      "/@self/" + post_id + "/@liked"
     api_endpoint += "?alt=json"
     if max_results:
       api_endpoint += "&max-results=" + str(max_results)

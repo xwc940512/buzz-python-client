@@ -69,6 +69,14 @@ def create_post():
   time.sleep(0.5)
   return CLIENT.posts().data[0]
 
+def assert_list(obj):
+  assert isinstance(obj, list), \
+    "Should have been a list but was: %s of type: %s" % (obj, type(obj))
+
+def assert_populated_list(obj, msg="Should have been a list with more than 0 items in it"):
+  assert_list(obj)
+  assert len(obj) > 0, msg
+
 # For the most part, these tests do not rely on any specific piece of data
 # being returned by the API.  Mostly they verify that an exception has not
 # been thrown.  Not ideal, but better than needlessly brittle tests.
@@ -148,8 +156,7 @@ def test_person_other_without_auth():
 def test_followers_me():
   result = CLIENT.followers()
   followers = result.data
-  assert isinstance(followers, list), \
-    "Should have been able to get the list of followers."
+  assert_list(followers)
 
 @dumpjson
 def test_followers_paginates():
@@ -182,23 +189,20 @@ def test_followers_other():
   client = buzz.Client()
   result = client.followers(BUZZ_TESTING_ID)
   followers = result.data
-  assert isinstance(followers, list), \
-    "Should have been able to get the list of followers."
+  assert_list(followers)
 
 @dumpjson
 def test_following_me():
   result = CLIENT.following()
   following = result.data
-  assert isinstance(following, list), \
-    "Should have been able to get the list of people being followed."
+  assert_list(following)
 
 @dumpjson
 def test_following_other():
   client = buzz.Client()
   result = client.following(BUZZ_TESTING_ID)
   following = result.data
-  assert isinstance(following, list), \
-    "Should have been able to get the list of people being followed."
+  assert_list(following)
 
 @dumpjson
 def test_follow():
@@ -255,9 +259,7 @@ def test_search_location():
     radius=500
   )
   posts = result.data
-  assert isinstance(posts, list), \
-    "Could not obtain reference to the posts for this query."
-  assert len(posts) > 0, "Not enough posts."
+  assert_populated_list(posts, "Not enough posts.")
   for post in posts:
     assert isinstance(post, buzz.Post), \
       "Could not obtain reference to the post."
@@ -267,9 +269,7 @@ def test_search_query():
   client = buzz.Client()
   result = client.search(query="google")
   posts = result.data
-  assert isinstance(posts, list), \
-    "Could not obtain reference to the posts for this query."
-  assert len(posts) > 0, "Not enough posts."
+  assert_populated_list(posts, "Not enough posts.")
   for i, post in enumerate(posts):
     assert isinstance(post, buzz.Post), \
       "Could not obtain reference to the post."
@@ -443,8 +443,7 @@ def test_unlike_post():
 def test_post_likers():
   post = CLIENT.post(post_id=BUZZ_POST_ID).data
   likers = post.likers().data
-  assert isinstance(likers, list), \
-    "Should have been able to get the list of likers."
+  assert_populated_list(likers, "Should have more than 0 likers")
 
 @dumpjson
 def test_mute_post():
