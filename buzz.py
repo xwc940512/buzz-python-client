@@ -1120,7 +1120,7 @@ class Person:
         json.get('uri') or json.get('profileUrl')
       if json.get('id'):
         self.id = json.get('id')
-      else:
+      elif self.uri:
         self.id = re.search('/([^/]*?)$', self.uri).group(1)
       self.name = \
         json.get('name') or json.get('displayName')
@@ -1132,7 +1132,8 @@ class Person:
         self.uris = json.get('urls')
       if json.get('photos'):
         self.photos = json.get('photos')
-      if not re.search('^\\d+$', re.search('/([^/]*?)$', self.uri).group(1)):
+      if self.uri and \
+          not re.search('^\\d+$', re.search('/([^/]*?)$', self.uri).group(1)):
         self.profile_name = re.search('/([^/]*?)$', self.uri).group(1)
     except KeyError, e:
       raise JSONParseError(
