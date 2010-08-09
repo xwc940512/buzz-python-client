@@ -383,7 +383,7 @@ def test_update_comment():
   post = create_post()
   comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
   CLIENT.create_comment(comment)
-  time.sleep(1.5)
+  time.sleep(2.5)
   comment = post.comments().data[0]
   comment.content = "This is updated content."
   CLIENT.update_comment(comment)
@@ -411,6 +411,7 @@ def test_delete_comment():
 def test_commented_posts():
   clear_posts()
   post = create_post()
+  time.sleep(1.5)
   comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
   CLIENT.create_comment(comment)
   assert len(CLIENT.commented_posts().data) > 0
@@ -420,7 +421,7 @@ def test_like_post():
   clear_posts()
   post = CLIENT.post(post_id=BUZZ_POST_ID).data
   post.like()
-  time.sleep(1.5)
+  time.sleep(2.0)
   posts = CLIENT.liked_posts().data
   assert len(posts) == 1
   clear_posts()
