@@ -37,8 +37,8 @@ CLIENT = buzz.Client()
 CLIENT.build_oauth_consumer(OAUTH_CONSUMER_KEY, OAUTH_CONSUMER_SECRET)
 CLIENT.build_oauth_access_token(OAUTH_TOKEN_KEY, OAUTH_TOKEN_SECRET)
 
-GOOGLEPLEX_LATITUDE = '37.420233'
-GOOGLEPLEX_LONGITUDE = '-122.08333'
+GOOGLEPLEX_LATITUDE = '37.421976'
+GOOGLEPLEX_LONGITUDE = '-122.08437'
 
 def dumpjson(test_method):
   def dumpjson_runner(*args, **kwargs):
@@ -256,7 +256,7 @@ def test_search_location():
   result = client.search(
     latitude=GOOGLEPLEX_LATITUDE,
     longitude=GOOGLEPLEX_LONGITUDE,
-    radius=500
+    radius=1000
   )
   posts = result.data
   assert_populated_list(posts, "Not enough posts.")
@@ -348,7 +348,7 @@ def test_update_post():
 def test_delete_post():
   create_post()
   clear_posts()
-  time.sleep(0.5)
+  time.sleep(1.5)
   assert CLIENT.posts().data == []
 
 @dumpjson
@@ -420,7 +420,7 @@ def test_like_post():
   clear_posts()
   post = CLIENT.post(post_id=BUZZ_POST_ID).data
   post.like()
-  time.sleep(0.5)
+  time.sleep(1.5)
   posts = CLIENT.liked_posts().data
   assert len(posts) == 1
   clear_posts()
@@ -430,11 +430,11 @@ def test_unlike_post():
   clear_posts()
   post = CLIENT.post(post_id=BUZZ_POST_ID).data
   post.like()
-  time.sleep(0.5)
+  time.sleep(1.5)
   posts = CLIENT.liked_posts().data
   assert len(posts) == 1
   post.unlike()
-  time.sleep(0.5)
+  time.sleep(1.5)
   posts = CLIENT.liked_posts().data
   assert len(posts) == 0
   clear_posts()
