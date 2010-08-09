@@ -97,7 +97,12 @@ try:
 except (ImportError):
   import simplejson
 
-CONFIG_PATH = os.environ.get('BUZZ_CONFIG_PATH', 'buzz_python_client.yaml')
+default_path = os.path.join(
+  os.path.dirname(__file__), 'buzz_python_client.yaml'
+)
+if not os.path.exists(default_path):
+  default_path = 'buzz_python_client.yaml'
+CONFIG_PATH = os.environ.get('BUZZ_CONFIG_PATH', default_path)
 if os.path.exists(CONFIG_PATH):
   # Allow optional configuration file to be loaded
   try:
@@ -808,7 +813,9 @@ class Post:
     self.attachments = attachments
     
     self._likers = None
+    self.liker_count = 0
     self._comments = None
+    self.comment_count = 0
     
     if self.json:
       # Parse the incoming JSON
@@ -830,6 +837,16 @@ class Post:
           self.object = json['object']
         self.link = json['links']['alternate'][0]
         self.uri = self.link['href']
+        replies = json['links'].get('replies')
+        if replies:
+          for reply in replies:
+            if reply.get('count'):
+              self.comment_count += reply.get('count')
+        liked = json['links'].get('liked')
+        if liked:
+          for liker in liked:
+            if liker.get('count'):
+              self.liker_count += liker.get('count')
         if isinstance(json.get('verb'), list):
           self.verb = json['verb'][0]
         elif json.get('verb'):
@@ -881,7 +898,10 @@ class Post:
   @property
   def public(self):
     if self.visibility:
-      public_visibilities = [entry for entry in self.visibility if entry.get('id') == 'tag:google.com,2010:buzz-group:@me:@public']
+      public_visibilities = [
+        entry for entry in self.visibility
+        if entry.get('id') == 'tag:google.com,2010:buzz-group:@me:@public'
+      ]
       return not not public_visibilities
     else:
       # If there's no visibility attribute it's public
