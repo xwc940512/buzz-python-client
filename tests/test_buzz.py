@@ -413,6 +413,17 @@ def test_delete_comment():
   assert comments == []
 
 @dumpjson
+def test_related_links():
+  clear_posts()
+  client = buzz.Client()
+  post = client.post(post_id=BUZZ_POST_ID).data
+  links = post.related_links().data
+  assert isinstance(links, list), \
+    "Could not obtain reference to the post's related links."
+  assert len(links) > 0, \
+    "Not enough related links for the post."
+
+@dumpjson
 def test_commented_posts():
   clear_posts()
   post = create_post()
