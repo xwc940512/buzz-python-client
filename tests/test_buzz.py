@@ -252,6 +252,20 @@ def test_unfollow_without_auth():
     assert True, "Great, it worked."
 
 @dumpjson
+def test_people_search_location():
+  client = buzz.Client()
+  result = client.people_search(
+    latitude=GOOGLEPLEX_LATITUDE,
+    longitude=GOOGLEPLEX_LONGITUDE,
+    radius=1000
+  )
+  people = result.data
+  assert_populated_list(people, "Not enough people.")
+  for person in people:
+    assert isinstance(person, buzz.Person), \
+      "Could not obtain reference to the person."
+
+@dumpjson
 def test_search_location():
   client = buzz.Client()
   result = client.search(
