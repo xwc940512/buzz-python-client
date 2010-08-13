@@ -195,6 +195,26 @@ def _prune_json_envelope(json):
     raise TypeError('Expected dict: \'%s\'' % str(json))
   return json
 
+def _parse_links(json):
+  # Follow Postel's law
+  links = []
+  if json.get('links'):
+    json = json.get('links')
+  if json:
+    for link_obj in json:
+      if isinstance(link_obj, str):
+        # We've got a key to an array rather than a link structure
+        link_list = json[link_obj]
+        for link_json in link_list:
+          links.append(Link(link_json, rel=link_obj))
+      elif isinstance(link_obj, dict):
+        # We've got a flat array of link structures
+        link_json = link_obj
+        links.append(Link(link_json))
+      else:
+        raise TypeError('Expected dict: \'%s\'' % str(link_type))
+  return links
+
 def _parse_geocode(geocode):
   # Follow Postel's law
   if ' ' in geocode:
@@ -822,6 +842,8 @@ class Post:
       # Follow Postel's law
       try:
         json = _prune_json_envelope(json)
+        if json.get('error'):
+          raise JSONParseError(json=json)
         self.id = json['id']
         if isinstance(json.get('content'), dict):
           self.content = json['content']['value']
@@ -835,18 +857,27 @@ class Post:
           self.title = json['title']
         if json.get('object'):
           self.object = json['object']
-        self.link = json['links']['alternate'][0]
-        self.uri = self.link['href']
-        replies = json['links'].get('replies')
-        if replies:
-          for reply in replies:
-            if reply.get('count'):
-              self.comment_count += reply.get('count')
-        liked = json['links'].get('liked')
-        if liked:
-          for liker in liked:
-            if liker.get('count'):
-              self.liker_count += liker.get('count')
+        if json.get('links'):
+          self.links = _parse_links(json.get('links'))
+        self.replies = []
+        self.liked = []
+        if self.links:
+          for link in self.links:
+            if link.rel == "alternate":
+              self.link = link
+              self.uri = self.link.uri
+            elif link.rel == "replies":
+              self.replies.append(link)
+            elif link.rel == "liked":
+              self.liked.append(link)
+        if self.replies:
+          for reply in self.replies:
+            if reply.count:
+              self.comment_count += reply.count
+        if self.liked:
+          for liker in self.liked:
+            if liker.count:
+              self.liker_count += liker.count
         if isinstance(json.get('verb'), list):
           self.verb = json['verb'][0]
         elif json.get('verb'):
@@ -985,12 +1016,15 @@ class Comment:
     self.id = None
     self.content = content
     self.actor = None
+    self.links = []
     self._post = post
     self._post_id = post_id
     if json:
       # Follow Postel's law
       try:
         json = _prune_json_envelope(json)
+        if json.get('error'):
+          raise JSONParseError(json=json)
         self.id = json['id']
         if isinstance(json.get('content'), dict):
           self.content = json['content']['value']
@@ -1002,8 +1036,13 @@ class Comment:
           self.actor = Person(json['author'], client=self.client)
         elif json.get('actor'):
           self.actor = Person(json['actor'], client=self.client)
-        if json.get('links') and json['links'].get('inReplyTo'):
-          self._post_id = json['links']['inReplyTo'][0]['ref']
+        if json.get('links'):
+          self.links = _parse_links(json.get('links'))
+        if self.links:
+          for link in self.links:
+            if link.rel == "inReplyTo":
+              self._post_id = link.id
+              break
         # TODO: handle timestamps
       except KeyError, e:
         raise JSONParseError(
@@ -1040,6 +1079,78 @@ class Comment:
           client.post(post_id=self._post_id).data
     return self._post
 
+class Link:
+  def __init__(self, json=None, 
+      id=None, rel=None, type=None, title=None, summary=None,
+      count=None, uri=None):
+    self.json = json
+    self.id = id
+    self.rel = rel
+    self.type = type
+    self.title = title
+    self.summary = summary
+    self.count = count
+    self.uri = uri
+    if json:
+      try:
+        json = _prune_json_envelope(json)
+        if json.get('error'):
+          raise JSONParseError(json=json)
+        if json.get('ref'):
+          self.id = json['ref']
+        elif json.get('id'):
+          self.id = json['id']
+        self.rel = json.get('rel') or self.rel
+        self.type = json.get('type') or self.type
+        if json.get('title'):
+          if isinstance(json['title'], dict):
+            self.title = json['title']['value']
+          else:
+            self.title = json['title']
+        else:
+          self.title = None
+        if isinstance(json.get('summary'), dict):
+          self.summary = json['summary']['value']
+        elif json.get('summary'):
+          self.summary = json['summary']
+        elif isinstance(json.get('content'), dict):
+          self.summary = json['content']['value']
+        elif json.get('content'):
+          self.summary = json['content']
+        else:
+          self.summary = None
+        if json.get('count'):
+          self.count = json['count']
+        if json.get('href'):
+          self.uri = json['href']
+        elif json.get('uri'):
+          self.uri = json['uri']
+      except KeyError, e:
+        raise JSONParseError(
+          json=json,
+          exception=e
+        )
+
+  def __repr__(self):
+    return (u'<Link[%s]>' % self.uri).encode(
+      'ASCII', 'ignore'
+    )
+
+  @property
+  def _json_output(self):
+    output = {}
+    if self.id:
+      output['ref'] = self.id
+    output['rel'] = self.rel or 'alternate'
+    output['type'] = self.type or 'text/html'
+    if self.title:
+      output['title'] = self.title
+    if self.summary:
+      output['summary'] = self.summary
+    if self.uri:
+      output['href'] = self.uri
+    return output
+
 class Attachment:
   def __init__(self, json=None, client=None,
       type=None, title=None, content=None, uri=None,
@@ -1051,11 +1162,14 @@ class Attachment:
     self.content = content
     self.uri = uri
     self.link = None
+    self.links = []
     self.preview = preview
     self.enclosure = enclosure
     if json:
       try:
         json = _prune_json_envelope(json)
+        if json.get('error'):
+          raise JSONParseError(json=json)
         if isinstance(json.get('content'), dict):
           self.content = json['content']['value']
         elif json.get('content'):
@@ -1067,12 +1181,17 @@ class Attachment:
             self.title = json['title']
         else:
           self.title = None
-        links = json.get('links')
-        if links and links.get('alternate'):
-          self.link = json['links']['alternate'][0]
-          self.uri = self.link['href']
-        if links and links.get('preview'):
-          self.preview = json['links']['preview'][0]
+        if json.get('links'):
+          self.links = _parse_links(json.get('links'))
+        if self.links:
+          for link in self.links:
+            if link.rel == "alternate":
+              self.link = link
+              self.uri = self.link.uri
+            elif link.rel == "preview":
+              self.preview = link
+            elif link.rel == "enclosure":
+              self.enclosure = link
         self.type = json['type']
       except KeyError, e:
         raise JSONParseError(
@@ -1100,11 +1219,11 @@ class Attachment:
       }
     if self.preview:
       output['links'] = {
-        u'preview': [{u'href': self.preview}]
+        u'preview': [{u'href': self.preview.uri}]
       }
     if self.enclosure:
       output['links'] = {
-        u'enclosure': [{u'href': self.enclosure}]
+        u'enclosure': [{u'href': self.enclosure.uri}]
       }
     return output
 
@@ -1116,6 +1235,8 @@ class Person:
     # Follow Postel's law
     try:
       json = _prune_json_envelope(json)
+      if json.get('error'):
+        raise JSONParseError(json=json)
       self.uri = \
         json.get('uri') or json.get('profileUrl')
       if json.get('id'):
