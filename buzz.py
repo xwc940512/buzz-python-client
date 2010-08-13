@@ -700,6 +700,20 @@ class Client:
   def commented_posts(self, user_id='@me'):
     """Returns a collection of posts that the user has commented on."""
     return self.posts(type_id='@comments', user_id=user_id)
+  
+  # Related Links
+  
+  def related_links(self, post_id, actor_id='0', max_results=20):
+    if isinstance(actor_id, Person):
+      actor_id = actor_id.id
+    if isinstance(post_id, Post):
+      post_id = post_id.id
+    api_endpoint = API_PREFIX + "/activities/" + actor_id + \
+      "/@self/" + post_id + "/@related"
+    api_endpoint += "?alt=json"
+    if max_results:
+      api_endpoint += "&max-results=" + str(max_results)
+    return Result(self, 'GET', api_endpoint, result_type=Link)
 
   # Likes
 
@@ -977,6 +991,12 @@ class Post:
     if not client:
       client = self.client
     return self.client.comments(post_id=self.id, actor_id=self.actor.id)
+
+  def related_links(self, client=None):
+    """Syntactic sugar for `client.related_links(post)`."""
+    if not client:
+      client = self.client
+    return self.client.related_links(post_id=self.id, actor_id=self.actor.id)
 
   def likers(self, client=None):
     """Syntactic sugar for `client.likers(post)`."""
@@ -1345,6 +1365,10 @@ class Result:
         self._data = self._parse_person(self._json)
       elif self.result_type == Person and not self.singular:
         self._data = self._parse_people(self._json)
+      elif self.result_type == Link and self.singular:
+        self._data = self._parse_link(self._json)
+      elif self.result_type == Link and not self.singular:
+        self._data = self._parse_links(self._json)
     return self._data
 
   def reload(self):
@@ -1517,6 +1541,42 @@ class Result:
       if isinstance(json, list):
         return [
           Person(person_json, client=self.client) for person_json in json
+        ]
+      else:
+        # The entire key is omitted when there are no results
+        return []
+    except KeyError, e:
+      raise JSONParseError(
+        uri=self._http_uri,
+        json=json,
+        exception=e
+      )
+
+  def _parse_link(self, json):
+    """Helper method for converting a person JSON structure."""
+    try:
+      if json.get('error'):
+        self.parse_error(json)
+      json = _prune_json_envelope(json)
+      if isinstance(json, list) and len(json) == 1:
+        json = json[0]
+      return Link(json)
+    except KeyError, e:
+      raise JSONParseError(
+        uri=self._http_uri,
+        json=json,
+        exception=e
+      )
+
+  def _parse_links(self, json):
+    """Helper method for converting a set of person JSON structures."""
+    try:
+      if json.get('error'):
+        self.parse_error(json)
+      json = _prune_json_envelope(json)
+      if isinstance(json, list):
+        return [
+          Link(link_json) for link_json in json
         ]
       else:
         # The entire key is omitted when there are no results
