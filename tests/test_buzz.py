@@ -46,7 +46,8 @@ def dumpjson(test_method):
       test_method(*args, **kwargs)
     except Exception, e:
       if hasattr(e, '_json'):
-        print 'JSON: \n%s' % e._json
+        print 'JSON:'
+        pprint(e._json)
       exc_info = sys.exc_info()
       raise exc_info[1], None, exc_info[2]
   if NOSE_ENABLED:
@@ -327,6 +328,7 @@ def test_post():
 @dumpjson
 def test_create_post():
   clear_posts()
+  time.sleep(1.5)
   post = create_post()
   assert post.content == "This is a test post."
   assert isinstance(post, buzz.Post), \
@@ -337,6 +339,7 @@ def test_update_post():
   clear_posts()
   post = create_post()
   post.content = "This is updated content."
+  time.sleep(1.5)
   CLIENT.update_post(post)
   time.sleep(1.5)
   post = CLIENT.posts().data[0]
@@ -347,8 +350,9 @@ def test_update_post():
 @dumpjson
 def test_delete_post():
   create_post()
-  clear_posts()
   time.sleep(1.5)
+  clear_posts()
+  time.sleep(3.0)
   assert CLIENT.posts().data == []
 
 @dumpjson
@@ -366,9 +370,10 @@ def test_comments():
 def test_create_comment():
   clear_posts()
   post = create_post()
+  time.sleep(3.0)
   comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
   CLIENT.create_comment(comment)
-  time.sleep(1.5)
+  time.sleep(2.5)
   comments = post.comments().data
   assert isinstance(comments, list), \
     "Could not obtain reference to the account's posts."
@@ -383,11 +388,11 @@ def test_update_comment():
   post = create_post()
   comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
   CLIENT.create_comment(comment)
-  time.sleep(2.5)
+  time.sleep(3.0)
   comment = post.comments().data[0]
   comment.content = "This is updated content."
   CLIENT.update_comment(comment)
-  time.sleep(1.5)
+  time.sleep(2.5)
   comment = post.comments().data[0]
   assert comment.content == "This is updated content."
 
@@ -395,15 +400,15 @@ def test_update_comment():
 def test_delete_comment():
   clear_posts()
   post = create_post()
-  time.sleep(1.5)
+  time.sleep(3.0)
   comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
   CLIENT.create_comment(comment)
-  time.sleep(1.5)
+  time.sleep(2.5)
   comments = post.comments().data
   comment = comments[0]
   assert comments != []
   CLIENT.delete_comment(comment)
-  time.sleep(1.5)
+  time.sleep(2.5)
   comments = post.comments().data
   assert comments == []
 
@@ -421,7 +426,7 @@ def test_like_post():
   clear_posts()
   post = CLIENT.post(post_id=BUZZ_POST_ID).data
   post.like()
-  time.sleep(2.0)
+  time.sleep(3.0)
   posts = CLIENT.liked_posts().data
   assert len(posts) == 1
   clear_posts()
@@ -431,11 +436,11 @@ def test_unlike_post():
   clear_posts()
   post = CLIENT.post(post_id=BUZZ_POST_ID).data
   post.like()
-  time.sleep(1.5)
+  time.sleep(2.5)
   posts = CLIENT.liked_posts().data
   assert len(posts) == 1
   post.unlike()
-  time.sleep(1.5)
+  time.sleep(3.0)
   posts = CLIENT.liked_posts().data
   assert len(posts) == 0
   clear_posts()
