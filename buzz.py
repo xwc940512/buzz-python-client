@@ -202,8 +202,8 @@ def _parse_links(json):
     json = json.get('links')
   if json:
     for link_obj in json:
-      if isinstance(link_obj, str):
-        # We've got a key to an array rather than a link structure
+      if isinstance(link_obj, unicode):
+        # We've got a unicode key to an array rather than a link structure
         link_list = json[link_obj]
         for link_json in link_list:
           links.append(Link(link_json, rel=link_obj))
@@ -212,7 +212,7 @@ def _parse_links(json):
         link_json = link_obj
         links.append(Link(link_json))
       else:
-        raise TypeError('Expected dict: \'%s\'' % str(link_type))
+        raise TypeError('Expected dict: \'%s\'' % str(link_obj))
   return links
 
 def _parse_geocode(geocode):
@@ -539,7 +539,14 @@ class Client:
 
   # People APIs
 
-  def people_search(self, \
+  def people_search(self, query=None):
+    api_endpoint = API_PREFIX + "/people/search?alt=json"
+    if query:
+      api_endpoint += "&q=" + urllib.quote_plus(query)
+    logging.info(api_endpoint)
+    return Result(self, 'GET', api_endpoint, result_type=Person)
+
+  def people_search_by_topic(self, \
       query=None, latitude=None, longitude=None, radius=None):
     api_endpoint = API_PREFIX + "/activities/search/@people?alt=json"
     if query:
