@@ -359,6 +359,15 @@ def test_create_post():
     "Could not obtain reference to the post."
 
 @dumpjson
+def test_created_post_has_published_field():
+  clear_posts()
+  time.sleep(1.5)
+  post = create_post()
+  assert post.published is not None
+  assert isinstance(post, buzz.Post), \
+    "Could not obtain reference to the post."
+
+@dumpjson
 def test_update_post():
   clear_posts()
   post = create_post()

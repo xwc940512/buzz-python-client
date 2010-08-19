@@ -855,6 +855,8 @@ class Post:
     self.type=None
     self.place_name=None
     self.visibility=None
+    self.published=None
+    self.updated=None
     
     # Construct the post piece-wise.
     self.content = content
@@ -915,6 +917,10 @@ class Post:
           self.verb = json['verb'][0]
         elif json.get('verb'):
           self.verb = json['verb']
+        if json.get('published'):
+          self.published = json['published']
+        if json.get('updated'):
+          self.updated = json['updated']
         if isinstance(json.get('type'), list):
           self.type = json['type'][0]
         elif json.get('type'):
@@ -942,7 +948,6 @@ class Post:
           if isinstance(self.visibility, dict) and \
               self.visibility.get('entries'):
             self.visibility = self.visibility.get('entries')
-        # TODO: handle timestamps
       except KeyError, e:
         raise JSONParseError(
           json=json,
@@ -1058,6 +1063,9 @@ class Comment:
     self.links = []
     self._post = post
     self._post_id = post_id
+    self.published=None
+    self.updated=None
+    
     if json:
       # Follow Postel's law
       try:
@@ -1082,7 +1090,10 @@ class Comment:
             if link.rel == "inReplyTo":
               self._post_id = link.id
               break
-        # TODO: handle timestamps
+        if json.get('published'):
+          self.published = json['published']
+        if json.get('updated'):
+          self.updated = json['updated']
       except KeyError, e:
         raise JSONParseError(
           json=json,

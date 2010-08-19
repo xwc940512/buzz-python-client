@@ -34,8 +34,10 @@ Post ID:        %s
 Title:          %s
 Actor:          %s
 Content         %s
+Published:      %s
+Updated:        %s
 URI:            %s
-""" % (post.id, post.title, post.actor.name, post.content, post.link)
+""" % (post.id, post.title, post.actor.name, post.content, post.published, post.updated, post.link)
 
 #
 # Main program starts here

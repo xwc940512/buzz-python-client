@@ -91,16 +91,20 @@ Once you're done enter the verification code to continue: ''' % (buzz_client.bui
         print 'Access token is invalid!!!'
         sys.exit(0)
     else:
-        print '''
+        print """
 Your access token key is \'%s\', secret is \'%s\'
 Keep this data handy in case you want to reuse the session later!
-''' % (buzz_client.oauth_access_token.key, buzz_client.oauth_access_token.secret)
+""" % (buzz_client.oauth_access_token.key, buzz_client.oauth_access_token.secret)
 
 def print_comment(comment):
-    print """Comment ID:        %s""" % (comment.id)
+    print """
+Comment ID:     %s
+Published:      %s
+Updated:        %s
+""" % (comment.id, comment.published, comment.updated)
 
 def print_post(post):
-    print """Post Link:        %s""" % (post.link['href'])
+    print """Post Link:        %s""" % (post.link.uri)
 
 def print_person(person):
   print """Person ID:   %s""" % (person.id)
@@ -135,6 +139,7 @@ try:
       print '(%s)' % (count+1),
       print_post(data)
 
+    print 'This post had the following comments'
     for count, data in enumerate(buzz_client.comments('tag:google.com,2010:buzz:z13gyftqiobxxv1l122wepbj3oqndvhm5')):
       print '(%s)' % (count+1),
       print_comment(data)
