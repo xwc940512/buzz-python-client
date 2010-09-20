@@ -53,7 +53,8 @@ try:
     print 'Searching for [%s]' % search_term
     results = buzz_client.search(search_term)
     print 'Search results: '
-    for data in results:
+    for index,data in enumerate(results):
+        print index
         print_post(data)
 except:
     print '\nBzzzz! Something broke!!!'

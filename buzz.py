@@ -202,8 +202,8 @@ def _parse_links(json):
     json = json.get('links')
   if json:
     for link_obj in json:
-      if isinstance(link_obj, unicode):
-        # We've got a unicode key to an array rather than a link structure
+      if isinstance(link_obj, unicode) or isinstance(link_obj, str):
+        # We've got a unicode or string (depending on OS config) key to an array rather than a link structure
         link_list = json[link_obj]
         for link_json in link_list:
           links.append(Link(link_json, rel=link_obj))
@@ -1403,7 +1403,8 @@ class Result:
 
   def reload(self):
     if DEBUG:
-      logging.info('URI to fetch is %s' % self._http_uri)
+      logging.debug('URI to fetch is %s' % self._http_uri)
+      logging.debug('Headers are: %s' % str(self._http_headers))
     self._data = None
     self._response = self.client.fetch_api_response(
       http_method=self._http_method,
