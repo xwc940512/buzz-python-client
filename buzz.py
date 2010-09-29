@@ -524,6 +524,8 @@ class Client:
           message = "Request timed out"
         else:
           message = "Request failed"
+      elif e.__class__.__name__ == 'TypeError':
+        message = "Network failure"
       else:
         message = str(e)
       json = None
@@ -532,7 +534,7 @@ class Client:
         json = e._json
       raise RetrieveError(
         uri=http_uri,
-        message=message,
+        message="%s: %s" % (e.__class__.__name__, message),
         json=json
       )
     return response
@@ -1289,6 +1291,8 @@ class Person:
         raise JSONParseError(json=json)
       self.uri = \
         json.get('uri') or json.get('profileUrl')
+      if self.uri == "":
+        self.uri = None
       if json.get('id'):
         self.id = json.get('id')
       elif self.uri:
