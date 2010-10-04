@@ -359,6 +359,106 @@ def test_create_post():
     "Could not obtain reference to the post."
 
 @dumpjson
+def test_create_post_with_link():
+  clear_posts()
+  time.sleep(1.5)
+  link_attachment = buzz.Attachment(
+    type='article',
+    title='Google',
+    uri='http://www.google.com/'
+  )
+  post = buzz.Post(
+    content='This is a test post.',
+    attachments=[
+      link_attachment
+    ]
+  )
+  CLIENT.create_post(post)
+  time.sleep(0.5)
+  post = CLIENT.posts().data[0]
+  assert isinstance(post, buzz.Post), \
+    "Could not obtain reference to the post."
+  assert post.content == 'This is a test post.'
+  assert_populated_list(
+    post.attachments,
+    'Could not obtain attachments.'
+  )
+  assert post.attachments[0].type == 'article'
+
+@dumpjson
+def test_create_post_with_photo():
+  clear_posts()
+  time.sleep(1.5)
+  photo_link = buzz.Link(
+    type='image/png',
+    uri='http://upload.wikimedia.org/wikipedia/commons/3/30/Googlelogo.png'
+  )
+  photo_attachment = buzz.Attachment(
+    type='photo',
+    enclosure=photo_link
+  )
+  post = buzz.Post(
+    content='This is a test post.',
+    attachments=[
+      photo_attachment
+    ]
+  )
+  CLIENT.create_post(post)
+  time.sleep(0.5)
+  post = CLIENT.posts().data[0]
+  assert isinstance(post, buzz.Post), \
+    "Could not obtain reference to the post."
+  assert post.content == 'This is a test post.'
+  assert_populated_list(
+    post.attachments,
+    'Could not obtain attachments.'
+  )
+  assert post.attachments[0].type == 'photo'
+
+@dumpjson
+def test_create_post_with_video():
+  clear_posts()
+  time.sleep(1.5)
+  video_attachment = buzz.Attachment(
+    type='video',
+    uri='http://www.youtube.com/watch?v=nnsSUqgkDwU'
+  )
+  post = buzz.Post(
+    content='This is a test post.',
+    attachments=[
+      video_attachment
+    ]
+  )
+  CLIENT.create_post(post)
+  time.sleep(0.5)
+  post = CLIENT.posts().data[0]
+  assert isinstance(post, buzz.Post), \
+    "Could not obtain reference to the post."
+  assert post.content == 'This is a test post.'
+  assert_populated_list(
+    post.attachments,
+    'Could not obtain attachments.'
+  )
+  assert post.attachments[0].type == 'video'
+
+@dumpjson
+def test_create_post_with_geocode():
+  clear_posts()
+  time.sleep(1.5)
+  post = buzz.Post(
+    content='This is a test post.',
+    geocode=('37.422', '-122.0843')
+  )
+  CLIENT.create_post(post)
+  time.sleep(0.5)
+  post = CLIENT.posts().data[0]
+  assert isinstance(post, buzz.Post), \
+    "Could not obtain reference to the post."
+  assert post.content == 'This is a test post.'
+  assert str(post.geocode[0]) == '37.422'
+  assert str(post.geocode[1]) == '-122.0843'
+
+@dumpjson
 def test_created_post_has_published_field():
   clear_posts()
   time.sleep(1.5)
