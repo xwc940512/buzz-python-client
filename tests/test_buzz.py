@@ -359,6 +359,20 @@ def test_create_post():
     "Could not obtain reference to the post."
 
 @dumpjson
+def test_create_post_with_seven_bit_character_set():
+  clear_posts()
+  time.sleep(1.5)
+  seven_bit_character_set=''
+  for c in xrange(128):
+    seven_bit_character_set += chr(c)
+  post = buzz.Post(content=seven_bit_character_set)
+  CLIENT.create_post(post)
+  time.sleep(0.5)
+  post = CLIENT.posts().data[0]
+  assert isinstance(post, buzz.Post), \
+    "Could not obtain reference to the post."
+
+@dumpjson
 def test_created_post_has_published_field():
   clear_posts()
   time.sleep(1.5)
