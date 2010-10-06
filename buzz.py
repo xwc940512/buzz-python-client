@@ -859,6 +859,7 @@ class Post:
     self.visibility=None
     self.published=None
     self.updated=None
+    self.source=None
     
     # Construct the post piece-wise.
     self.content = content
@@ -955,6 +956,8 @@ class Post:
           if isinstance(self.visibility, dict) and \
               self.visibility.get('entries'):
             self.visibility = self.visibility.get('entries')
+        if json.get('source') and json['source'].get('title'):
+          self.source = json['source']['title']
       except KeyError, e:
         raise JSONParseError(
           json=json,
