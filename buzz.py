@@ -197,13 +197,18 @@ def _prune_json_envelope(json):
 
 def _parse_links(json):
   # Follow Postel's law
+  if not isinstance(json, dict):
+    raise TypeError(
+      'Expected dict as arg but received %s: %s' % type(json), json
+    )
   links = []
   if json.get('links'):
     json = json.get('links')
   if json:
     for link_obj in json:
-      if isinstance(link_obj, unicode) or isinstance(link_obj, str):
-        # We've got a unicode or string (depending on OS config) key to an array rather than a link structure
+      if isinstance(link_obj, basestring):
+        # We've got a unicode or string (depending on OS config) key to an
+        # array rather than a link structure
         link_list = json[link_obj]
         for link_json in link_list:
           links.append(Link(link_json, rel=link_obj))
@@ -485,7 +490,7 @@ class Client:
     if not self.oauth_consumer and http_headers.get('Authorization'):
       del http_headers['Authorization']
     http_headers.update({
-      'Content-Length': len(http_body)
+      'Content-Length': str(len(http_body))
     })
     if http_body:
       http_headers.update({
