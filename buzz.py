@@ -16,6 +16,8 @@
 Common Tasks
 ============
 - Authentication
+  - Google's implementation of OAuth is covered in the documentation for the
+    Accounts API: http://code.google.com/apis/accounts/docs/OAuth_ref.html
   - Getting the request token::
     import buzz
     client = buzz.Client()
