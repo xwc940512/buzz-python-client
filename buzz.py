@@ -48,6 +48,17 @@ Common Tasks
     client.build_oauth_access_token(
       access_token.key, access_token.secret
     )
+- Getting streams
+  - Signed-in user's consumption stream::
+    results = client.posts(user_id='@me', type_id='@consumption')
+  - Signed-in user's published posts::
+    results = client.posts(user_id='@me', type_id='@self')
+  - Another user's public posts::
+    results = client.posts(user_id='googlebuzz', type_id='@public')
+  - Larger result pages::
+    results = client.posts(
+      user_id='googlebuzz', type_id='@public', max_results=100
+    )
 - Creating a post
   - Simple::
     post = buzz.Post(
@@ -197,13 +208,18 @@ def _prune_json_envelope(json):
 
 def _parse_links(json):
   # Follow Postel's law
+  if not isinstance(json, dict):
+    raise TypeError(
+      'Expected dict as arg but received %s: %s' % type(json), json
+    )
   links = []
   if json.get('links'):
     json = json.get('links')
   if json:
     for link_obj in json:
-      if isinstance(link_obj, unicode) or isinstance(link_obj, str):
-        # We've got a unicode or string (depending on OS config) key to an array rather than a link structure
+      if isinstance(link_obj, basestring):
+        # We've got a unicode or string (depending on OS config) key to an
+        # array rather than a link structure
         link_list = json[link_obj]
         for link_json in link_list:
           links.append(Link(link_json, rel=link_obj))
@@ -485,7 +501,7 @@ class Client:
     if not self.oauth_consumer and http_headers.get('Authorization'):
       del http_headers['Authorization']
     http_headers.update({
-      'Content-Length': len(http_body)
+      'Content-Length': str(len(http_body))
     })
     if http_body:
       http_headers.update({
@@ -864,6 +880,7 @@ class Post:
     self.visibility=None
     self.published=None
     self.updated=None
+    self.source=None
     
     # Construct the post piece-wise.
     self.content = content
@@ -894,9 +911,7 @@ class Post:
           self.content = json['content']
         elif json.get('object') and json['object'].get('content'):
           self.content = json['object']['content']
-        if isinstance(json.get('annotations'), list):
-          self.annotation = json['annotations'][0]['content']
-        elif json.get('annotation'):
+        if json.get('annotation'):
           self.annotation = json['annotation']
         if isinstance(json['title'], dict):
           self.title = json['title']['value']
@@ -960,6 +975,8 @@ class Post:
           if isinstance(self.visibility, dict) and \
               self.visibility.get('entries'):
             self.visibility = self.visibility.get('entries')
+        if json.get('source') and json['source'].get('title'):
+          self.source = json['source']['title']
       except KeyError, e:
         raise JSONParseError(
           json=json,
@@ -1005,10 +1022,7 @@ class Post:
     if self.content:
       output['object']['content'] = self.content
     if self.annotation:
-      # NOTE: This format is probably unstable
-      output['annotations'] = [
-        {'content':self.annotation, 'contentType': 'text/html'}
-      ]
+      output['annotation'] = self.annotation
     if self.type:
       output['object']['type'] = self.type
     else:
