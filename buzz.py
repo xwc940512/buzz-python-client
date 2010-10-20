@@ -895,9 +895,7 @@ class Post:
           self.content = json['content']
         elif json.get('object') and json['object'].get('content'):
           self.content = json['object']['content']
-        if isinstance(json.get('annotations'), list):
-          self.annotation = json['annotations'][0]['content']
-        elif json.get('annotation'):
+        if json.get('annotation'):
           self.annotation = json['annotation']
         if isinstance(json['title'], dict):
           self.title = json['title']['value']
@@ -1008,10 +1006,7 @@ class Post:
     if self.content:
       output['object']['content'] = self.content
     if self.annotation:
-      # NOTE: This format is probably unstable
-      output['annotations'] = [
-        {'content':self.annotation, 'contentType': 'text/html'}
-      ]
+      output['annotation'] = self.annotation
     if self.type:
       output['object']['type'] = self.type
     else:
