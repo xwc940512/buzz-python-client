@@ -227,10 +227,10 @@ def _parse_geocode(geocode):
 
 class Client:
   """
-  The L{Client} object is the primary method of making calls against the Buzz
-  API.  It can be used with or without authentication.  It attempts to reuse
-  HTTP connections whenever possible.  Currently, authentication is done via
-  OAuth.  
+  The Buzz API L{Client} object is the primary method of making calls against
+  the Buzz API. It can be used with or without authentication. It attempts to
+  reuse HTTP connections whenever possible. Currently, authentication is done
+  via OAuth.
   """
   def __init__(self):
     # Make sure we're always getting the right HTTP connection, even if
@@ -846,6 +846,11 @@ class Client:
     return response.read()
 
 class Post:
+  """
+  The L{Post} object represents a post within Buzz.  A post has an actor and
+  content, and may have zero or more comments and likes.  An L{Attachment} may
+  be associated with the post by appending to the attachments list.
+  """
   def __init__(self, json=None, client=None,
       content=None, annotation=None, uri=None, verb=None, actor=None,
       geocode=None, place_id=None,
@@ -1065,6 +1070,10 @@ class Post:
     return client.unmute_post(post_id=self.id)
 
 class Comment:
+  """
+  The L{Comment} object represents a comment on a L{Post} within Buzz. A
+  comment always has an actor and content associated with it.
+  """
   def __init__(self, json=None, client=None,
       post=None, post_id=None, content=None):
     self.client = client
@@ -1142,6 +1151,10 @@ class Comment:
     return self._post
 
 class Link:
+  """
+  The L{Link} object represents a hyperlink.  It encapsulates both the URI of
+  the hyperlink itself, as well as metadata such as MIME type and rel-value.
+  """
   def __init__(self, json=None, 
       id=None, rel=None, type=None, title=None, summary=None,
       count=None, uri=None):
@@ -1214,6 +1227,11 @@ class Link:
     return output
 
 class Attachment:
+  """
+  The L{Attachment} object represents an attachment to a L{Post} within Buzz.
+  It may contain rich media types such as video, audio, pictures, or just
+  simple hyperlinks.
+  """
   def __init__(self, json=None, client=None,
       type=None, title=None, content=None, uri=None,
       preview=None, enclosure=None):
@@ -1290,6 +1308,11 @@ class Attachment:
     return output
 
 class Person:
+  """
+  The L{Person} object represents a Buzz user.  L{Person} objects may be
+  associated with L{Post} or L{Comment} objects as authors, or with other
+  L{Person} objects as followers.
+  """
   def __init__(self, json, client=None):
     self.client = client
     self.json = json
@@ -1363,6 +1386,9 @@ class Person:
     return client.posts(user_id=self.id)
 
 class Result:
+  """
+  The L{Result} object encapsulates each result returned from the API.
+  """
   def __init__(self, client, http_method, http_uri, http_headers={}, \
       http_body='', result_type=Post, singular=False):
     self.client = client
@@ -1649,6 +1675,9 @@ class Result:
     
 
 class ResultIterator:
+  """
+  A L{ResultIterator} allows iteration over a result set.
+  """
   def __init__(self, result):
     self.result = result
     self.cursor = 0
