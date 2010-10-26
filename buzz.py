@@ -644,13 +644,19 @@ class Client:
       api_endpoint += "&radius=" + urllib.quote(str(radius))
     return Result(self, 'GET', api_endpoint, result_type=Post)
 
+  def __add_max_results(self, api_endpoint, max_results):
+    if max_results:
+      api_endpoint += "&max-results=" + str(max_results)
+      return api_endpoint
+
+    return api_endpoint
+
   def posts(self, type_id='@self', user_id='@me', max_results=20):
     if isinstance(user_id, Person):
       user_id = user_id.id
     api_endpoint = API_PREFIX + "/activities/" + str(user_id) + "/" + type_id
     api_endpoint += "?alt=json"
-    if max_results:
-      api_endpoint += "&max-results=" + str(max_results)
+    api_endpoint = self.__add_max_results(api_endpoint, max_results)
     return Result(self, 'GET', api_endpoint, result_type=Post)
 
   def post(self, post_id, actor_id='0'):
@@ -698,8 +704,7 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@self/" + post_id + "/@comments"
     api_endpoint += "?alt=json"
-    if max_results:
-      api_endpoint += "&max-results=" + str(max_results)
+    api_endpoint = self.__add_max_results(api_endpoint, max_results)
     return Result(self, 'GET', api_endpoint, result_type=Comment)
 
   def create_comment(self, comment):
@@ -752,8 +757,7 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@self/" + post_id + "/@related"
     api_endpoint += "?alt=json"
-    if max_results:
-      api_endpoint += "&max-results=" + str(max_results)
+    api_endpoint = self.__add_max_results(api_endpoint, max_results)
     return Result(self, 'GET', api_endpoint, result_type=Link)
 
   # Likes
@@ -766,8 +770,7 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@self/" + post_id + "/@liked"
     api_endpoint += "?alt=json"
-    if max_results:
-      api_endpoint += "&max-results=" + str(max_results)
+    api_endpoint = self.__add_max_results(api_endpoint, max_results)
     return Result(self, 'GET', api_endpoint, result_type=Person)
 
   def liked_posts(self, user_id='@me'):
