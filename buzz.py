@@ -633,7 +633,7 @@ class Client:
 
   # Post APIs
 
-  def search(self, query=None, latitude=None, longitude=None, radius=None):
+  def search(self, query=None, latitude=None, longitude=None, radius=None, max_results=20):
     api_endpoint = API_PREFIX + "/activities/search?alt=json"
     if query:
       api_endpoint += "&q=" + urllib.quote_plus(query)
@@ -642,6 +642,7 @@ class Client:
       api_endpoint += "&lon=" + urllib.quote(longitude)
     if radius is not None:
       api_endpoint += "&radius=" + urllib.quote(str(radius))
+    api_endpoint = self.__add_max_results(api_endpoint, max_results)
     return Result(self, 'GET', api_endpoint, result_type=Post)
 
   def __add_max_results(self, api_endpoint, max_results):
@@ -651,12 +652,20 @@ class Client:
 
     return api_endpoint
 
-  def posts(self, type_id='@self', user_id='@me', max_results=20):
+  def __add_max_comments(self, api_endpoint, max_comments):
+    if max_comments:
+      api_endpoint += "&max-comments=" + str(max_comments)
+      return api_endpoint
+
+    return api_endpoint
+
+  def posts(self, type_id='@self', user_id='@me', max_results=20, max_comments=0):
     if isinstance(user_id, Person):
       user_id = user_id.id
     api_endpoint = API_PREFIX + "/activities/" + str(user_id) + "/" + type_id
     api_endpoint += "?alt=json"
     api_endpoint = self.__add_max_results(api_endpoint, max_results)
+    api_endpoint = self.__add_max_comments(api_endpoint, max_comments)
     return Result(self, 'GET', api_endpoint, result_type=Post)
 
   def post(self, post_id, actor_id='0'):
@@ -749,7 +758,7 @@ class Client:
   
   # Related Links
   
-  def related_links(self, post_id, actor_id='0', max_results=20):
+  def related_links(self, post_id, actor_id='0'):
     if isinstance(actor_id, Person):
       actor_id = actor_id.id
     if isinstance(post_id, Post):
@@ -757,7 +766,6 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/" + actor_id + \
       "/@self/" + post_id + "/@related"
     api_endpoint += "?alt=json"
-    api_endpoint = self.__add_max_results(api_endpoint, max_results)
     return Result(self, 'GET', api_endpoint, result_type=Link)
 
   # Likes

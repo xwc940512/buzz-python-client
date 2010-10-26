@@ -302,6 +302,16 @@ def test_search_query():
       break
 
 @dumpjson
+def test_search_query_results_can_be_restricted():
+  client = buzz.Client()
+  max_results = 2
+  result = client.search(query="google", max_results=max_results)
+  posts = result.data
+  assert_populated_list(posts, "Not enough posts.")
+  assert max_results == len(posts)
+
+
+@dumpjson
 def test_posts_me():
   result = CLIENT.posts()
   posts = result.data
