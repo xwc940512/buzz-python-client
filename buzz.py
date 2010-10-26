@@ -667,6 +667,8 @@ class Client:
     api_endpoint = API_PREFIX + "/activities/@me/@self"
     api_endpoint += "?alt=json"
     json_string = simplejson.dumps({'data': post._json_output})
+    logging.debug('Creating post: %s' % json_string)
+
     return Result(
       self, 'POST', api_endpoint, http_body=json_string, result_type=None
     ).data
@@ -1473,7 +1475,10 @@ class Result:
       if self._body == '':
         self._json = None
       else:
-        self._json = simplejson.loads(self._body)
+        # Use a custom decoder so that we can switch off strict mode so that illegal control characters don't break
+        # things
+        decoder = simplejson.JSONDecoder(strict=False)
+        self._json = decoder.decode(self._body)
     except Exception, e:
       raise JSONParseError(
         json=(self._json or self._body),
@@ -1713,6 +1718,10 @@ class ResultIterator:
         self.result.load_next()
       else:
         raise StopIteration('No more results.')
+
+    if self.local_index >= len(self.result.data):
+      raise StopIteration('No more results.')
+
     # The local_index is in range of the current page
     value = self.result.data[self.local_index]
     self.cursor += 1
