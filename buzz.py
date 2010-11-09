@@ -270,6 +270,8 @@ class Client:
 
     self._http_connection = None
 
+    self.api_key = None
+
     # OAuth state
     self.oauth_scopes = []
     self._oauth_http_connection = None
@@ -502,6 +504,17 @@ class Client:
       http_connection = self.http_connection
     if not self.oauth_consumer and http_headers.get('Authorization'):
       del http_headers['Authorization']
+    if self.api_key:
+      # Is anyone else bothered by this?  I know I am.
+      # It should *not* be this hard to insert a new query parameter correctly.
+      # I must surely be missing something.
+      parsed_uri = urlparse.urlsplit(http_uri)
+      query = parsed_uri.query.split('&')
+      query.insert(0, 'key=' + self.api_key)
+      http_uri = urlparse.urlunsplit((
+        parsed_uri.scheme, parsed_uri.netloc, parsed_uri.path,
+        '&'.join(query), parsed_uri.fragment
+      ))
     http_headers.update({
       'Content-Length': str(len(http_body))
     })
