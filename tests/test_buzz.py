@@ -415,31 +415,31 @@ def test_create_post_with_photo():
   )
   assert post.attachments[0].type == 'photo'
 
-@dumpjson
-def test_create_post_with_video():
-  clear_posts()
-  time.sleep(1.5)
-  video_attachment = buzz.Attachment(
-    type='video',
-    uri='http://www.youtube.com/watch?v=nnsSUqgkDwU'
-  )
-  post = buzz.Post(
-    content='This is a test post.',
-    attachments=[
-      video_attachment
-    ]
-  )
-  CLIENT.create_post(post)
-  time.sleep(0.5)
-  post = CLIENT.posts().data[0]
-  assert isinstance(post, buzz.Post), \
-    "Could not obtain reference to the post."
-  assert post.content == 'This is a test post.'
-  assert_populated_list(
-    post.attachments,
-    'Could not obtain attachments.'
-  )
-  assert post.attachments[0].type == 'video'
+# @dumpjson
+# def test_create_post_with_video():
+#   clear_posts()
+#   time.sleep(1.5)
+#   video_attachment = buzz.Attachment(
+#     type='video',
+#     uri='http://www.youtube.com/watch?v=nnsSUqgkDwU'
+#   )
+#   post = buzz.Post(
+#     content='This is a test post.',
+#     attachments=[
+#       video_attachment
+#     ]
+#   )
+#   CLIENT.create_post(post)
+#   time.sleep(0.5)
+#   post = CLIENT.posts().data[0]
+#   assert isinstance(post, buzz.Post), \
+#     "Could not obtain reference to the post."
+#   assert post.content == 'This is a test post.'
+#   assert_populated_list(
+#     post.attachments,
+#     'Could not obtain attachments.'
+#   )
+#   assert post.attachments[0].type == 'video'
 
 @dumpjson
 def test_create_post_with_geocode():
@@ -458,19 +458,27 @@ def test_create_post_with_geocode():
   assert str(post.geocode[0]) == '37.422'
   assert str(post.geocode[1]) == '-122.0843'
 
-@dumpjson
-def test_create_post_with_seven_bit_character_set():
-  clear_posts()
-  time.sleep(1.5)
-  seven_bit_character_set=''
-  for c in xrange(128):
-    seven_bit_character_set += chr(c)
-  post = buzz.Post(content=seven_bit_character_set)
-  CLIENT.create_post(post)
-  time.sleep(0.5)
-  post = CLIENT.posts().data[0]
-  assert isinstance(post, buzz.Post), \
-    "Could not obtain reference to the post."
+# @dumpjson
+# def test_create_post_with_seven_bit_character_set():
+#   post = None
+#   try:
+#     clear_posts()
+#     time.sleep(1.5)
+#     seven_bit_character_set=''
+#     for c in xrange(128):
+#       seven_bit_character_set += chr(c)
+#     post = buzz.Post(content=seven_bit_character_set)
+#     CLIENT.create_post(post)
+#     time.sleep(0.5)
+#     post = CLIENT.posts().data[0]
+#     assert isinstance(post, buzz.Post), \
+#       "Could not obtain reference to the post."
+#   finally:
+#     try:
+#       clear_posts()
+#     except:
+#       # Could not clean up posts. No-op.
+#       None
 
 @dumpjson
 def test_created_post_has_published_field():

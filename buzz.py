@@ -119,6 +119,7 @@ else:
 
 READONLY_SCOPE = 'https://www.googleapis.com/auth/buzz.readonly'
 FULL_ACCESS_SCOPE = 'https://www.googleapis.com/auth/buzz'
+PHOTOS_SCOPE = 'https://picasaweb.google.com/data/'
 
 OAUTH_REQUEST_TOKEN_URI = \
   'https://www.google.com/accounts/OAuthGetRequestToken'
@@ -210,8 +211,14 @@ def _parse_links(json):
         # We've got a unicode or string (depending on OS config) key to an
         # array rather than a link structure
         link_list = json[link_obj]
-        for link_json in link_list:
-          links.append(Link(link_json, rel=link_obj))
+        if isinstance(link_list, list):
+          for link_json in link_list:
+            links.append(Link(link_json, rel=link_obj))
+        elif isinstance(link_list, dict):
+          # Yikes, WTF... parse it, but seriously, WTF.
+          links.append(Link(link_list, rel=link_obj))            
+        else:
+          raise TypeError('Expected list or dict: \'%s\'' % str(link_list))
       elif isinstance(link_obj, dict):
         # We've got a flat array of link structures
         link_json = link_obj
@@ -620,7 +627,8 @@ class Client:
 
   # Post APIs
 
-  def search(self, query=None, latitude=None, longitude=None, radius=None):
+  def search(self, query=None, latitude=None, longitude=None, radius=None,
+      max_results=20):
     api_endpoint = API_PREFIX + "/activities/search?alt=json"
     if query:
       api_endpoint += "&q=" + urllib.quote_plus(query)
@@ -629,6 +637,8 @@ class Client:
       api_endpoint += "&lon=" + urllib.quote(longitude)
     if radius is not None:
       api_endpoint += "&radius=" + urllib.quote(str(radius))
+    if max_results:
+      api_endpoint += "&max-results=" + str(max_results)
     return Result(self, 'GET', api_endpoint, result_type=Post)
 
   def posts(self, type_id='@self', user_id='@me', max_results=20):
@@ -832,6 +842,53 @@ class Client:
         exception=e
       )
 
+  # Albums
+
+  def albums(self, user_id='@me', max_results=20):
+    if isinstance(user_id, Person):
+      user_id = user_id.id
+    api_endpoint = API_PREFIX + "/photos/" + str(user_id) + "/@self"
+    api_endpoint += "?alt=json"
+    if max_results:
+      api_endpoint += "&max-results=" + str(max_results)
+    return Result(self, 'GET', api_endpoint, result_type=Album)
+
+  def album(self, user_id='@me', album_id=None, max_results=20):
+    if isinstance(user_id, Person):
+      user_id = user_id.id
+    api_endpoint = API_PREFIX + "/photos/" + str(user_id) + \
+      "/@self/" + album_id
+    api_endpoint += "?alt=json"
+    if max_results:
+      api_endpoint += "&max-results=" + str(max_results)
+    return Result(self, 'GET', api_endpoint, result_type=Album, singular=True)
+
+  def photos(self, user_id='@me', album_id=None, max_results=20):
+    if isinstance(user_id, Person):
+      user_id = user_id.id
+    if isinstance(album_id, Album):
+      album_id = album_id.id
+    api_endpoint = API_PREFIX + "/photos/" + str(user_id) + \
+      "/@self/" + album_id + "/@photos"
+    api_endpoint += "?alt=json"
+    if max_results:
+      api_endpoint += "&max-results=" + str(max_results)
+    return Result(self, 'GET', api_endpoint, result_type=Photo)
+
+  def photo(self, user_id='@me', album_id=None, photo_id=None, max_results=20):
+    if isinstance(user_id, Person):
+      user_id = user_id.id
+    if isinstance(album_id, Album):
+      album_id = album_id.id
+    if isinstance(photo_id, Photo):
+      photo_id = photo_id.id
+    api_endpoint = API_PREFIX + "/photos/" + str(user_id) + \
+      "/@self/" + album_id + "/@photos/" + photo_id
+    api_endpoint += "?alt=json"
+    if max_results:
+      api_endpoint += "&max-results=" + str(max_results)
+    return Result(self, 'GET', api_endpoint, result_type=Photo, singular=True)
+
   # OAuth debugging
 
   def oauth_token_info(self):
@@ -1029,19 +1086,19 @@ class Post:
     """Syntactic sugar for `client.comments(post)`."""
     if not client:
       client = self.client
-    return self.client.comments(post_id=self.id, actor_id=self.actor.id)
+    return client.comments(post_id=self.id, actor_id=self.actor.id)
 
   def related_links(self, client=None):
     """Syntactic sugar for `client.related_links(post)`."""
     if not client:
       client = self.client
-    return self.client.related_links(post_id=self.id, actor_id=self.actor.id)
+    return client.related_links(post_id=self.id, actor_id=self.actor.id)
 
   def likers(self, client=None):
     """Syntactic sugar for `client.likers(post)`."""
     if not client:
       client = self.client
-    return self.client.likers(post_id=self.id, actor_id=self.actor.id)
+    return client.likers(post_id=self.id, actor_id=self.actor.id)
 
   def like(self, client=None):
     """Syntactic sugar for `client.like_post(post)`."""
@@ -1166,6 +1223,9 @@ class Link:
         elif json.get('id'):
           self.id = json['id']
         self.rel = json.get('rel') or self.rel
+        if self.rel == 'page':
+          # Because seriously...
+          self.rel = 'alternate'
         self.type = json.get('type') or self.type
         if json.get('title'):
           if isinstance(json['title'], dict):
@@ -1292,6 +1352,197 @@ class Attachment:
       }
     return output
 
+class Album:
+  def __init__(self, json=None, client=None,
+      title=None, content=None):
+      
+    self.client = client
+    self.json = json
+    self.id = None
+    self.title = title
+    self.content = content
+    self.owner = None
+    self.created = None
+    self.last_modified = None
+    self.version = None
+    self.uri = None
+    self.link = None
+    self.links = []
+    if json:
+      try:
+        json = _prune_json_envelope(json)
+        if json.get('error'):
+          raise JSONParseError(json=json)
+        if json.get('id'):
+          self.id = json['id']
+        if isinstance(json.get('content'), dict):
+          self.content = json['content']['value']
+        elif json.get('content'):
+          self.content = json['content']
+        elif json.get('description'):
+          self.content = json['description']
+        else:
+          self.content = None
+        if json.get('title'):
+          if isinstance(json['title'], dict):
+            self.title = json['title']['value']
+          else:
+            self.title = json['title']
+        else:
+          self.title = None
+        if json.get('created'):
+          self.created = json['created']
+        if json.get('lastModified'):
+          self.last_modified = json['lastModified']
+        if json.get('version'):
+          self.version = json['version']
+        if json.get('links'):
+          self.links = _parse_links(json.get('links'))
+        if self.links:
+          for link in self.links:
+            if link.rel == "alternate":
+              self.link = link
+              self.uri = self.link.uri
+          if not self.uri:
+            for link in self.links:
+              if link.type == "text/html":
+                self.link = link
+                self.uri = self.link.uri
+        if json.get('actor'):
+          self.owner = Person(json['actor'], client=self.client)
+        elif json.get('owner'):
+          self.owner = Person(json['owner'], client=self.client)
+      except KeyError, e:
+        raise JSONParseError(
+          json=json,
+          exception=e
+        )
+
+  def __repr__(self):
+    return (u'<Album[%s]>' % self.id).encode('ASCII', 'ignore')
+
+  def photos(self, client=None):
+    """Syntactic sugar for `client.photos(album)`."""
+    if not client:
+      client = self.client
+    return client.photos(album_id=self.id, user_id=self.owner.id)
+
+  # TODO
+  # @property
+  # def _json_output(self):
+  #   output = {}
+  #   if self.title:
+  #     output['title'] = self.title
+  #   if self.content:
+  #     output['content'] = self.content
+  #   if self.uri:
+  #     output['links'] = {
+  #       u'alternate': [{u'href': self.uri, u'type': u'text/html'}]
+  #     }
+  #   if self.preview:
+  #     output['links'] = {
+  #       u'preview': [{u'href': self.preview.uri}]
+  #     }
+  #   if self.enclosure:
+  #     output['links'] = {
+  #       u'enclosure': [{u'href': self.enclosure.uri}]
+  #     }
+  #   return output
+
+class Photo:
+  def __init__(self, json=None, client=None,
+      title=None, content=None):
+
+    self.client = client
+    self.json = json
+    self.id = None
+    self.title = title
+    self.content = content
+    self.owner = None
+    self.created = None
+    self.last_modified = None
+    self.timestamp = None
+    self.version = None
+    self.uri = None
+    self.link = None
+    self.links = []
+    if json:
+      try:
+        json = _prune_json_envelope(json)
+        if json.get('error'):
+          raise JSONParseError(json=json)
+        if json.get('id'):
+          self.id = json['id']
+        if isinstance(json.get('content'), dict):
+          self.content = json['content']['value']
+        elif json.get('content'):
+          self.content = json['content']
+        elif json.get('description'):
+          self.content = json['description']
+        else:
+          self.content = None
+        if json.get('title'):
+          if isinstance(json['title'], dict):
+            self.title = json['title']['value']
+          else:
+            self.title = json['title']
+        else:
+          self.title = None
+        if json.get('created'):
+          self.created = json['created']
+        if json.get('lastModified'):
+          self.last_modified = json['lastModified']
+        if json.get('timestamp'):
+          self.timestamp = json['timestamp']
+        if json.get('version'):
+          self.version = json['version']
+        if json.get('links'):
+          self.links = _parse_links(json.get('links'))
+        if self.links:
+          for link in self.links:
+            if link.rel == "alternate":
+              self.link = link
+              self.uri = self.link.uri
+          if not self.uri:
+            for link in self.links:
+              if link.type == "text/html":
+                self.link = link
+                self.uri = self.link.uri
+        if json.get('actor'):
+          self.owner = Person(json['actor'], client=self.client)
+        elif json.get('owner'):
+          self.owner = Person(json['owner'], client=self.client)
+      except KeyError, e:
+        raise JSONParseError(
+          json=json,
+          exception=e
+        )
+
+  def __repr__(self):
+    return (u'<Photo[%s]>' % self.id).encode('ASCII', 'ignore')
+
+  # TODO
+  # @property
+  # def _json_output(self):
+  #   output = {}
+  #   if self.title:
+  #     output['title'] = self.title
+  #   if self.content:
+  #     output['content'] = self.content
+  #   if self.uri:
+  #     output['links'] = {
+  #       u'alternate': [{u'href': self.uri, u'type': u'text/html'}]
+  #     }
+  #   if self.preview:
+  #     output['links'] = {
+  #       u'preview': [{u'href': self.preview.uri}]
+  #     }
+  #   if self.enclosure:
+  #     output['links'] = {
+  #       u'enclosure': [{u'href': self.enclosure.uri}]
+  #     }
+  #   return output
+
 class Person:
   def __init__(self, json, client=None):
     self.client = client
@@ -1416,6 +1667,14 @@ class Result:
         self._data = self._parse_link(self._json)
       elif self.result_type == Link and not self.singular:
         self._data = self._parse_links(self._json)
+      elif self.result_type == Album and self.singular:
+        self._data = self._parse_album(self._json)
+      elif self.result_type == Album and not self.singular:
+        self._data = self._parse_albums(self._json)
+      elif self.result_type == Photo and self.singular:
+        self._data = self._parse_photo(self._json)
+      elif self.result_type == Photo and not self.singular:
+        self._data = self._parse_photos(self._json)
     return self._data
 
   def reload(self):
@@ -1528,21 +1787,21 @@ class Result:
         exception=e
       )
 
-    def _parse_comment(self, json):
-      """Helper method for converting a comment JSON structure."""
-      try:
-        if json.get('error'):
-          self.parse_error(json)
-        json = _prune_json_envelope(json)
-        if isinstance(json, list) and len(json) == 1:
-          json = json[0]
-        return Comment(json, client=self.client)
-      except KeyError, e:
-        raise JSONParseError(
-          uri=self._http_uri,
-          json=json,
-          exception=e
-        )
+  def _parse_comment(self, json):
+    """Helper method for converting a comment JSON structure."""
+    try:
+      if json.get('error'):
+        self.parse_error(json)
+      json = _prune_json_envelope(json)
+      if isinstance(json, list) and len(json) == 1:
+        json = json[0]
+      return Comment(json, client=self.client)
+    except KeyError, e:
+      raise JSONParseError(
+        uri=self._http_uri,
+        json=json,
+        exception=e
+      )
 
   def _parse_comments(self, json):
     """Helper method for converting a set of comment JSON structures."""
@@ -1636,6 +1895,78 @@ class Result:
         exception=e
       )
 
+  def _parse_album(self, json):
+    """Helper method for converting an album JSON structure."""
+    try:
+      if json.get('error'):
+        self.parse_error(json)
+      json = _prune_json_envelope(json)
+      if isinstance(json, list) and len(json) == 1:
+        json = json[0]
+      return Album(json, client=self.client)
+    except KeyError, e:
+      raise JSONParseError(
+        uri=self._http_uri,
+        json=json,
+        exception=e
+      )
+
+  def _parse_albums(self, json):
+    """Helper method for converting a set of album JSON structures."""
+    try:
+      if json.get('error'):
+        self.parse_error(json)
+      json = _prune_json_envelope(json)
+      if isinstance(json, list):
+        return [
+          Album(post_json, client=self.client) for post_json in json
+        ]
+      else:
+        # The entire key is omitted when there are no results
+        return []
+    except KeyError, e:
+      raise JSONParseError(
+        uri=self._http_uri,
+        json=json,
+        exception=e
+      )
+
+  def _parse_photo(self, json):
+    """Helper method for converting a photo JSON structure."""
+    try:
+      if json.get('error'):
+        self.parse_error(json)
+      json = _prune_json_envelope(json)
+      if isinstance(json, list) and len(json) == 1:
+        json = json[0]
+      return Photo(json, client=self.client)
+    except KeyError, e:
+      raise JSONParseError(
+        uri=self._http_uri,
+        json=json,
+        exception=e
+      )
+
+  def _parse_photos(self, json):
+    """Helper method for converting a set of photo JSON structures."""
+    try:
+      if json.get('error'):
+        self.parse_error(json)
+      json = _prune_json_envelope(json)
+      if isinstance(json, list):
+        return [
+          Photo(post_json, client=self.client) for post_json in json
+        ]
+      else:
+        # The entire key is omitted when there are no results
+        return []
+    except KeyError, e:
+      raise JSONParseError(
+        uri=self._http_uri,
+        json=json,
+        exception=e
+      )
+
   def _parse_error(self, json):
     """Helper method for converting an error response to an exception."""
     if json:
@@ -1671,6 +2002,14 @@ class ResultIterator:
         self.result.load_next()
       else:
         raise StopIteration('No more results.')
+    if not self.result.data:
+      raise StopIteration('No data.')
+    if self.local_index >= len(self.result.data):
+      raise IndexError(
+        'Local index %d out of range for data set of size %d' % (
+          self.local_index, len(self.result.data)
+        )
+      )
     # The local_index is in range of the current page
     value = self.result.data[self.local_index]
     self.cursor += 1
