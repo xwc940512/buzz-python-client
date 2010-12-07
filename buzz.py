@@ -863,7 +863,7 @@ class Client:
       api_endpoint += "&max-results=" + str(max_results)
     return Result(self, 'GET', api_endpoint, result_type=Album, singular=True)
 
-  def photos(self, user_id='@me', album_id=None, max_results=20):
+  def photos(self, user_id='@me', album_id='@recent', max_results=20):
     if isinstance(user_id, Person):
       user_id = user_id.id
     if isinstance(album_id, Album):
