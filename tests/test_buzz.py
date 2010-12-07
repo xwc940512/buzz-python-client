@@ -59,13 +59,14 @@ def clear_posts():
   # Make sure we don't have any posts
   posts = CLIENT.posts()
   for post in posts:
+    assert ('CLIENTTEST: ' in post.content), 'Missing testing guard.  Abort.'
     CLIENT.delete_post(post)
   post = CLIENT.post(post_id=BUZZ_POST_ID).data
   post.unlike()
   post.unmute()
 
 def create_post():
-  post = buzz.Post(content="This is a test post.")
+  post = buzz.Post(content="CLIENTTEST: This is a test post.")
   CLIENT.create_post(post)
   time.sleep(0.5)
   return CLIENT.posts().data[0]
@@ -364,7 +365,7 @@ def test_create_post():
   clear_posts()
   time.sleep(1.5)
   post = create_post()
-  assert post.content == "This is a test post."
+  assert post.content == "CLIENTTEST: This is a test post."
   assert isinstance(post, buzz.Post), \
     "Could not obtain reference to the post."
 
@@ -378,7 +379,7 @@ def test_create_post_with_link():
     uri='http://www.google.com/'
   )
   post = buzz.Post(
-    content='This is a test post.',
+    content='CLIENTTEST: This is a test post.',
     attachments=[
       link_attachment
     ]
@@ -388,7 +389,7 @@ def test_create_post_with_link():
   post = CLIENT.posts().data[0]
   assert isinstance(post, buzz.Post), \
     "Could not obtain reference to the post."
-  assert post.content == 'This is a test post.'
+  assert post.content == 'CLIENTTEST: This is a test post.'
   assert_populated_list(
     post.attachments,
     'Could not obtain attachments.'
@@ -408,7 +409,7 @@ def test_create_post_with_photo():
     enclosure=photo_link
   )
   post = buzz.Post(
-    content='This is a test post.',
+    content='CLIENTTEST: This is a test post.',
     attachments=[
       photo_attachment
     ]
@@ -418,7 +419,7 @@ def test_create_post_with_photo():
   post = CLIENT.posts().data[0]
   assert isinstance(post, buzz.Post), \
     "Could not obtain reference to the post."
-  assert post.content == 'This is a test post.'
+  assert post.content == 'CLIENTTEST: This is a test post.'
   assert_populated_list(
     post.attachments,
     'Could not obtain attachments.'
@@ -437,7 +438,7 @@ def test_create_post_with_photo():
 #    uri='http://www.youtube.com/watch?v=nnsSUqgkDwU'
 #  )
 #  post = buzz.Post(
-#    content='This is a test post.',
+#    content='CLIENTTEST: This is a test post.',
 #    attachments=[
 #      video_attachment
 #    ]
@@ -447,7 +448,7 @@ def test_create_post_with_photo():
 #  post = CLIENT.posts().data[0]
 #  assert isinstance(post, buzz.Post), \
 #    "Could not obtain reference to the post."
-#  assert post.content == 'This is a test post.'
+#  assert post.content == 'CLIENTTEST: This is a test post.'
 #  assert_populated_list(
 #    post.attachments,
 #    'Could not obtain attachments.'
@@ -459,7 +460,7 @@ def test_create_post_with_geocode():
   clear_posts()
   time.sleep(1.5)
   post = buzz.Post(
-    content='This is a test post.',
+    content='CLIENTTEST: This is a test post.',
     geocode=('37.422', '-122.0843')
   )
   CLIENT.create_post(post)
@@ -467,7 +468,7 @@ def test_create_post_with_geocode():
   post = CLIENT.posts().data[0]
   assert isinstance(post, buzz.Post), \
     "Could not obtain reference to the post."
-  assert post.content == 'This is a test post.'
+  assert post.content == 'CLIENTTEST: This is a test post.'
   assert str(post.geocode[0]) == '37.422'
   assert str(post.geocode[1]) == '-122.0843'
 
@@ -480,7 +481,7 @@ def test_create_post_with_seven_bit_character_set():
     seven_bit_character_set=''
     for c in xrange(128):
       seven_bit_character_set += chr(c)
-    post = buzz.Post(content=seven_bit_character_set)
+    post = buzz.Post(content='CLIENTTEST: ' + seven_bit_character_set)
     CLIENT.create_post(post)
     time.sleep(0.5)
     post = CLIENT.posts().data[0]
@@ -506,12 +507,13 @@ def test_created_post_has_published_field():
 def test_update_post():
   clear_posts()
   post = create_post()
-  post.content = "This is updated content."
+  assert ('CLIENTTEST: ' in post.content), 'Missing testing guard.  Abort.'
+  post.content = "CLIENTTEST: This is updated content."
   time.sleep(1.5)
   CLIENT.update_post(post)
   time.sleep(1.5)
   post = CLIENT.posts().data[0]
-  assert post.content == "This is updated content."
+  assert post.content == "CLIENTTEST: This is updated content."
   assert isinstance(post, buzz.Post), \
     "Could not obtain reference to the post."
 
@@ -539,7 +541,9 @@ def test_create_comment():
   clear_posts()
   post = create_post()
   time.sleep(3.0)
-  comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
+  comment = buzz.Comment(
+    content="CLIENTTEST: This is a test comment.", post_id=post.id
+  )
   CLIENT.create_comment(comment)
   time.sleep(2.5)
   comments = post.comments().data
@@ -548,28 +552,32 @@ def test_create_comment():
   comment = comments[0]
   assert isinstance(comment, buzz.Comment), \
     "Could not obtain reference to the comment."
-  assert comment.content == "This is a test comment."
+  assert comment.content == "CLIENTTEST: This is a test comment."
 
 @dumpjson
 def test_update_comment():
   clear_posts()
   post = create_post()
-  comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
+  comment = buzz.Comment(
+    content="CLIENTTEST: This is a test comment.", post_id=post.id
+  )
   CLIENT.create_comment(comment)
   time.sleep(3.0)
   comment = post.comments().data[0]
-  comment.content = "This is updated content."
+  comment.content = "CLIENTTEST: This is updated content."
   CLIENT.update_comment(comment)
   time.sleep(2.5)
   comment = post.comments().data[0]
-  assert comment.content == "This is updated content."
+  assert comment.content == "CLIENTTEST: This is updated content."
 
 @dumpjson
 def test_delete_comment():
   clear_posts()
   post = create_post()
   time.sleep(3.0)
-  comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
+  comment = buzz.Comment(
+    content="CLIENTTEST: This is a test comment.", post_id=post.id
+  )
   CLIENT.create_comment(comment)
   time.sleep(2.5)
   comments = post.comments().data
@@ -596,7 +604,9 @@ def test_commented_posts():
   clear_posts()
   post = create_post()
   time.sleep(1.5)
-  comment = buzz.Comment(content="This is a test comment.", post_id=post.id)
+  comment = buzz.Comment(
+    content="CLIENTTEST: This is a test comment.", post_id=post.id
+  )
   CLIENT.create_comment(comment)
   assert len(CLIENT.commented_posts().data) > 0
 
