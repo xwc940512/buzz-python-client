@@ -311,7 +311,6 @@ def test_search_query_results_can_be_restricted():
   assert_populated_list(posts, "Not enough posts.")
   assert max_results == len(posts)
 
-
 @dumpjson
 def test_posts_me():
   result = CLIENT.posts()
